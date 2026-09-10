@@ -16,6 +16,7 @@ export function ModelForm({ initial, hasStoredKey }: {
   const [report, setReport] = useState<TestReport>()
   const [offered, setOffered] = useState<{ chat: string[]; embed: string[] }>()
   const [listError, setListError] = useState<string>()
+  const [advice, setAdvice] = useState<{ problem: string; suggestion: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string>()
@@ -29,7 +30,7 @@ export function ModelForm({ initial, hasStoredKey }: {
       setError(undefined); setSaved(false)
       try {
         const r = await fn({ ...form, clearApiKey: clearKey })
-        setReport(r); setSaved(isSave)
+        setReport(r); setSaved(isSave); setAdvice(r.advice ?? null)
       } catch (e) { setError((e as Error).message) }
     })
 
@@ -41,7 +42,12 @@ export function ModelForm({ initial, hasStoredKey }: {
     setLoading(true); setListError(undefined)
     const res = await fetchModels(form.baseUrl, clearKey ? '' : form.apiKey)
     setLoading(false)
-    if (!res.ok) { setOffered(undefined); setListError(res.error); return }
+    if (!res.ok) {
+      setOffered(undefined); setListError(res.error)
+      setAdvice((res as { advice?: typeof advice }).advice ?? null)
+      return
+    }
+    setAdvice(null)
     setOffered({ chat: res.chat, embed: res.embed })
     setForm((f) => ({
       ...f,
@@ -61,9 +67,32 @@ export function ModelForm({ initial, hasStoredKey }: {
           <Input value={form.baseUrl} onChange={(e) => set('baseUrl')(e.target.value)}
                  placeholder="http://10.0.4.20:1234/v1" spellCheck={false} />
           <span className="text-xs opacity-60">
-            Any OpenAI-compatible <code>/v1</code> endpoint — LM Studio, Ollama, vLLM, a gateway, or a hosted provider.
+            Any OpenAI-compatible <code>/v1</code> endpoint — LM Studio, Ollama, vLLM, a gateway, or a
+            hosted provider. Resolved from where Setu runs, not from your browser: for a model on the
+            machine hosting Setu use <code>host.docker.internal</code>, and for another machine use its
+            address.
           </span>
         </label>
+
+        {advice && (
+          <div role="alert" className="alert alert-warning items-start sm:col-span-2">
+            <AlertTriangle className="h-5 w-5" aria-hidden />
+            <div>
+              <div className="font-semibold">That address is not reachable from Setu</div>
+              <p className="text-sm opacity-80">{advice.problem}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="badge badge-neutral font-mono">{advice.suggestion}</code>
+                <Button type="button" size="sm" variant="outline"
+                        onClick={() => { set('baseUrl')(advice.suggestion); setAdvice(null); setListError(undefined) }}>
+                  Use this instead
+                </Button>
+              </div>
+              <p className="mt-2 text-xs opacity-70">
+                For a model on another machine, enter that machine's address instead.
+              </p>
+            </div>
+          </div>
+        )}
 
         <label className="grid gap-1.5 text-sm sm:col-span-2">
           <span className="font-medium">API key <span className="font-normal opacity-60">— optional</span></span>

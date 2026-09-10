@@ -8,6 +8,7 @@ import { audit } from '../auth/audit.ts'
 import { encryptSecret, maskSecret } from '../model/secret.ts'
 import { getModelConfig } from '../model/config.ts'
 import { testModelEndpoint, listModels, type TestReport } from '../model/test.ts'
+import { adviseUrl } from '../model/network.ts'
 
 export type ModelInput = {
   baseUrl: string
@@ -38,7 +39,8 @@ async function resolveKey(input: ModelInput): Promise<string> {
 export async function fetchModels(baseUrl: string, apiKey: string) {
   await assertMayConfigure()
   const key = apiKey || (await getModelConfig()).apiKey
-  return listModels(baseUrl, key)
+  const res = await listModels(baseUrl, key)
+  return res.ok ? res : { ...res, advice: adviseUrl(baseUrl) }
 }
 
 /** Test without saving, so a bad endpoint never replaces a working one. */

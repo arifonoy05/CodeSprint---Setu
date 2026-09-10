@@ -25,6 +25,10 @@ services:
       LLM_REASONING_EFFORT: none
       EMBED_MODEL: ${EMBED_MODEL:-text-embedding-nomic-embed-text-v1.5}
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-at-least-32-chars-long!}
+      # Lets Setu explain why a loopback endpoint is unreachable from in here.
+      SETU_IN_CONTAINER: "true"
+      # Reaches a model running outside the container, on the host.
+      SETU_HOST_ALIAS: host.docker.internal
     ports: ["3000:3000"]
     # Lets the container reach the tunnel bound on the host bridge.
     extra_hosts: ["host.docker.internal:host-gateway"]

@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { assertPrivateEndpoint } from '../egress.ts'
 import { env } from '../env.ts'
+import { adviseUrl, type UrlAdvice } from './network.ts'
 
 export type TestReport = {
   ok: boolean
@@ -13,6 +14,8 @@ export type TestReport = {
   reasoningOffOk: boolean
   embedDims?: number
   errors: string[]
+  /** Set when the URL cannot work from where the call is made (e.g. loopback in a container). */
+  advice?: UrlAdvice
 }
 
 /**
@@ -70,6 +73,9 @@ export async function testModelEndpoint(input: {
     r.models = (await client.models.list()).data.map((m) => m.id)
   } catch (err) {
     r.errors.push(`Cannot list models: ${(err as Error).message}`)
+    // A loopback address from inside a container is the most common cause, and the bare
+    // error says nothing useful about it.
+    r.advice = adviseUrl(input.baseUrl)
     return r
   }
   if (r.models.length && !r.models.includes(input.chatModel)) {

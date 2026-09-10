@@ -41,6 +41,31 @@ BRD's zero-egress requirement, so it is a deliberate, recorded choice rather tha
 
 `LLM_BASE_URL` and friends remain as a bootstrap for a fresh install, before anything is saved.
 
+### Connecting a model that runs outside the container
+
+The URL is resolved by **Setu**, not by your browser. Inside a container `127.0.0.1` is the
+container itself, so a model on your machine is not reachable there.
+
+| where the model runs | what to enter |
+|---|---|
+| the machine hosting Setu (LM Studio, Ollama) | `http://host.docker.internal:1234/v1` |
+| another machine on the network | `http://10.0.4.20:1234/v1` |
+| a hosted provider | `https://api.provider.com/v1` + API key |
+
+Enter a loopback address and the settings page says why it cannot work and offers the corrected
+URL as a one-click fix, rather than failing with a bare "Connection error".
+
+Demonstrated:
+
+```
+from your Mac:              127.0.0.1:1234       -> 200
+from inside the container:  127.0.0.1:1234       -> CONNECTION REFUSED
+                            host.docker.internal -> reachable (192.168.65.254)
+```
+
+Running without Docker (`npm run dev`), the app *is* on your machine, so `127.0.0.1` is correct
+and `host.docker.internal` will not resolve.
+
 ### The old environment-variable route
 
 The app sends client business logic to the model endpoint, so that endpoint must be private.
