@@ -556,6 +556,13 @@ surfaces minutes into a run. `verified_at` is set only by a passing test, and bo
 endpoint and backlog generation refuse while a blocker stands; the UI hiding the control is
 presentation, not the control.
 
+**Model names are chosen from what the endpoint offers**, not typed. A gateway may serve dozens of
+models, so the names cannot be inferred — but asking someone to type an id from memory produces a
+working endpoint that reports "model not offered". The form loads `/v1/models`, splits chat from
+embedding, and preselects. Free text remains for endpoints that publish no list. The embedding model
+and reasoning effort sit under **Advanced**: both have a right answer almost always, and changing the
+embedding model is a migration, not a preference.
+
 **API keys are encrypted at rest** (AES-256-GCM, key derived from `SESSION_SECRET`) and never sent
 back to the browser — the form shows a masked hint and an empty field means "keep the stored key".
 

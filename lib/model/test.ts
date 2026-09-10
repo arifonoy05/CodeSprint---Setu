@@ -15,6 +15,24 @@ export type TestReport = {
   errors: string[]
 }
 
+/**
+ * Just the model list — cheap, and lets the form offer what the endpoint actually has
+ * instead of asking someone to type a model id from memory.
+ */
+export async function listModels(baseUrl: string, apiKey: string): Promise<
+  { ok: true; chat: string[]; embed: string[] } | { ok: false; error: string }
+> {
+  try {
+    const client = new OpenAI({ baseURL: baseUrl, apiKey: apiKey || 'not-needed', maxRetries: 0, timeout: 20_000 })
+    const ids = (await client.models.list()).data.map((m) => m.id)
+    // Endpoints rarely say which is which, so split on the one signal they all share.
+    const embed = ids.filter((i) => /embed/i.test(i))
+    return { ok: true, chat: ids.filter((i) => !embed.includes(i)), embed }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
 const SCHEMA = {
   type: 'json_schema',
   json_schema: { name: 'probe', strict: true, schema: { type: 'object',

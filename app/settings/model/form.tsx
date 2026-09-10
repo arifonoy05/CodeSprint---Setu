@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
-import { CheckCircle2, XCircle, AlertTriangle, Plug, Save } from 'lucide-react'
-import { testModel, saveModel, type ModelInput } from '@/lib/actions/model.ts'
+import { CheckCircle2, XCircle, AlertTriangle, Plug, Save, RefreshCw, Settings2 } from 'lucide-react'
+import { testModel, saveModel, fetchModels, type ModelInput } from '@/lib/actions/model.ts'
 import type { TestReport } from '@/lib/model/test.ts'
 import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
@@ -14,6 +14,9 @@ export function ModelForm({ initial, hasStoredKey }: {
   const [form, setForm] = useState<ModelInput>(initial)
   const [clearKey, setClearKey] = useState(false)
   const [report, setReport] = useState<TestReport>()
+  const [offered, setOffered] = useState<{ chat: string[]; embed: string[] }>()
+  const [listError, setListError] = useState<string>()
+  const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string>()
   const [pending, start] = useTransition()
@@ -29,6 +32,24 @@ export function ModelForm({ initial, hasStoredKey }: {
         setReport(r); setSaved(isSave)
       } catch (e) { setError((e as Error).message) }
     })
+
+  /**
+   * Ask the endpoint what it offers, and pick sensible defaults. Typing a model id from
+   * memory is how you get a working endpoint that reports "model not offered".
+   */
+  const load = async () => {
+    setLoading(true); setListError(undefined)
+    const res = await fetchModels(form.baseUrl, clearKey ? '' : form.apiKey)
+    setLoading(false)
+    if (!res.ok) { setOffered(undefined); setListError(res.error); return }
+    setOffered({ chat: res.chat, embed: res.embed })
+    setForm((f) => ({
+      ...f,
+      chatModel: res.chat.includes(f.chatModel) ? f.chatModel : res.chat[0] ?? f.chatModel,
+      embedModel: res.embed.includes(f.embedModel) ? f.embedModel : res.embed[0] ?? f.embedModel,
+    }))
+    setReport(undefined)
+  }
 
   const needsAck = report && !report.isPrivate && !form.egressAcknowledged
 
@@ -59,29 +80,75 @@ export function ModelForm({ initial, hasStoredKey }: {
           <span className="text-xs opacity-60">Encrypted at rest. Never shown again after saving.</span>
         </label>
 
-        <label className="grid gap-1.5 text-sm">
-          <span className="font-medium">Chat model</span>
-          <Input value={form.chatModel} onChange={(e) => set('chatModel')(e.target.value)} spellCheck={false} />
-        </label>
-
-        <label className="grid gap-1.5 text-sm">
-          <span className="font-medium">Embedding model</span>
-          <Input value={form.embedModel} onChange={(e) => set('embedModel')(e.target.value)} spellCheck={false} />
-        </label>
-
-        <label className="grid gap-1.5 text-sm">
-          <span className="font-medium">Reasoning effort</span>
-          <select className="select select-bordered" value={form.reasoningEffort}
-                  onChange={(e) => set('reasoningEffort')(e.target.value)}>
-            <option value="none">none — recommended</option>
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-            <option value="">omit the parameter</option>
-          </select>
-          <span className="text-xs opacity-60">Measured 215s vs 4s per call. Sixty calls a run.</span>
-        </label>
+        <div className="grid gap-1.5 text-sm sm:col-span-2">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">Chat model</span>
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                    disabled={loading || !form.baseUrl} onClick={load}>
+              <RefreshCw className={loading ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} aria-hidden />
+              {offered ? 'Refresh list' : 'Load from endpoint'}
+            </Button>
+          </div>
+          {offered?.chat.length ? (
+            <select className="select select-bordered" value={form.chatModel}
+                    onChange={(e) => set('chatModel')(e.target.value)}>
+              {!offered.chat.includes(form.chatModel) && <option value={form.chatModel}>{form.chatModel}</option>}
+              {offered.chat.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          ) : (
+            <Input value={form.chatModel} onChange={(e) => set('chatModel')(e.target.value)} spellCheck={false} />
+          )}
+          <span className="text-xs opacity-60">
+            {offered?.chat.length
+              ? `${offered.chat.length} offered by this endpoint.`
+              : 'Load the list, or type the id if the endpoint does not publish one.'}
+          </span>
+          {listError && <span className="text-xs text-[var(--color-error)]">{listError}</span>}
+        </div>
       </div>
+
+      {/* Rarely changed, and changing the embedding model is a migration — not a field to
+          leave sitting next to the URL. */}
+      <details className="rounded-[var(--radius)] border border-[var(--color-border)] p-3">
+        <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+          <Settings2 className="h-4 w-4 opacity-70" aria-hidden /> Advanced
+          <span className="font-normal opacity-60">
+            — embedding model ({form.embedModel}), reasoning effort ({form.reasoningEffort || 'omitted'})
+          </span>
+        </summary>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">Embedding model</span>
+            {offered?.embed.length ? (
+              <select className="select select-bordered" value={form.embedModel}
+                      onChange={(e) => set('embedModel')(e.target.value)}>
+                {!offered.embed.includes(form.embedModel) && <option value={form.embedModel}>{form.embedModel}</option>}
+                {offered.embed.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            ) : (
+              <Input value={form.embedModel} onChange={(e) => set('embedModel')(e.target.value)} spellCheck={false} />
+            )}
+            <span className="text-xs opacity-60">
+              Must produce 768-dimensional vectors. Changing it needs a schema migration and a
+              full re-index, and invalidates the measured quality figures.
+            </span>
+          </label>
+
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">Reasoning effort</span>
+            <select className="select select-bordered" value={form.reasoningEffort}
+                    onChange={(e) => set('reasoningEffort')(e.target.value)}>
+              <option value="none">none — recommended</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+              <option value="">omit the parameter</option>
+            </select>
+            <span className="text-xs opacity-60">Measured 215s vs 4s per call, and sixty calls a run.</span>
+          </label>
+        </div>
+      </details>
 
       {report && !report.isPrivate && (
         <div role="alert" className="alert alert-warning items-start">

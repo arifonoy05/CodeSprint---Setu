@@ -7,7 +7,7 @@ import { can } from '../auth/roles.ts'
 import { audit } from '../auth/audit.ts'
 import { encryptSecret, maskSecret } from '../model/secret.ts'
 import { getModelConfig } from '../model/config.ts'
-import { testModelEndpoint, type TestReport } from '../model/test.ts'
+import { testModelEndpoint, listModels, type TestReport } from '../model/test.ts'
 
 export type ModelInput = {
   baseUrl: string
@@ -32,6 +32,13 @@ async function resolveKey(input: ModelInput): Promise<string> {
   if (input.clearApiKey) return ''
   if (input.apiKey) return input.apiKey
   return (await getModelConfig()).apiKey
+}
+
+/** Ask the endpoint what it offers, so the form can present real choices. */
+export async function fetchModels(baseUrl: string, apiKey: string) {
+  await assertMayConfigure()
+  const key = apiKey || (await getModelConfig()).apiKey
+  return listModels(baseUrl, key)
 }
 
 /** Test without saving, so a bad endpoint never replaces a working one. */
