@@ -1,6 +1,5 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Network, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { requireUser } from '@/lib/auth/session.ts'
 import { can } from '@/lib/auth/roles.ts'
 import { sql } from '@/lib/db/client.ts'
@@ -13,7 +12,9 @@ import { GenerateButton, ApproveBacklog } from './actions.tsx'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Backlog({ params }: { params: Promise<{ id: string }> }) {
+export default async function Backlog(
+  { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ view?: string }> },
+) {
   const user = await requireUser()
   const runId = Number((await params).id)
   const [run] = await sql<any[]>`
@@ -39,26 +40,25 @@ export default async function Backlog({ params }: { params: Promise<{ id: string
          + (SELECT count(*)::int FROM tasks WHERE run_id=${runId} AND status='proposed')
          + (SELECT count(*)::int FROM test_scenarios WHERE run_id=${runId} AND status='proposed') AS n`
 
-  // D10: roles land on the artifact they care about.
-  const view = user.role === 'dev' ? 'tasks' : user.role === 'qa' ? 'tests' : 'all'
+  /**
+   * D10: a role only picks the DEFAULT view. Any signed-in user may look at any of them,
+   * so an explicit ?view= wins over the role — a QA can read the developer tasks.
+   */
+  const requested = (await searchParams).view
+  const view = requested === 'tasks' || requested === 'tests' || requested === 'all'
+    ? requested
+    : user.role === 'dev' ? 'tasks' : user.role === 'qa' ? 'tests' : 'all'
   const elapsedMin = run.backlog_approved_at
     ? Math.round((Date.parse(run.backlog_approved_at) - Date.parse(run.started_at)) / 60000)
     : null
   const hasStories = rows.some((r) => r.story_id)
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} runId={runId}>
       {run.is_demo && <DemoBanner />}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Link href={`/runs/${runId}`} className="link flex items-center gap-1 text-sm opacity-70">
-          <ArrowLeft className="h-4 w-4" aria-hidden /> Findings
-        </Link>
+      <div className="mb-4 flex flex-wrap items-baseline gap-3">
         <h1 className="text-2xl font-semibold">Backlog</h1>
         <span className="font-mono text-xs opacity-60">{run.filename}</span>
-        {view !== 'all' && <Badge variant="info">{view} view · {user.role}</Badge>}
-        <Link href={`/runs/${runId}/matrix`} className="link ml-auto flex items-center gap-1 text-sm">
-          <Network className="h-4 w-4" aria-hidden /> Matrix
-        </Link>
       </div>
 
       {!run.approved_at && (

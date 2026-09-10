@@ -1,6 +1,5 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Download, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Download, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { requireUser } from '@/lib/auth/session.ts'
 import { can } from '@/lib/auth/roles.ts'
 import { sql } from '@/lib/db/client.ts'
@@ -37,15 +36,11 @@ export default async function Matrix({ params }: { params: Promise<{ id: string 
   const canExport = can(user.role, 'artifact:export')
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} runId={runId}>
       {run.is_demo && <DemoBanner />}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Link href={`/runs/${runId}`} className="link flex items-center gap-1 text-sm opacity-70">
-          <ArrowLeft className="h-4 w-4" aria-hidden /> Findings
-        </Link>
+      <div className="mb-4 flex flex-wrap items-baseline gap-3">
         <h1 className="text-2xl font-semibold">Traceability</h1>
         <span className="font-mono text-xs opacity-60">{run.filename}</span>
-        <Link href={`/runs/${runId}/backlog`} className="link ml-auto text-sm">Backlog</Link>
       </div>
 
       <Card className="mb-4">

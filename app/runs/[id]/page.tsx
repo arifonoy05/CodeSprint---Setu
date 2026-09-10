@@ -1,6 +1,5 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, ListChecks, Network } from 'lucide-react'
+
 import { requireUser } from '@/lib/auth/session.ts'
 import { can } from '@/lib/auth/roles.ts'
 import { sql } from '@/lib/db/client.ts'
@@ -61,24 +60,13 @@ export default async function Run({ params }: { params: Promise<{ id: string }> 
     ? stats.suppressed / (stats.produced + stats.suppressed) : 0
 
   return (
-    <AppShell user={user}>
+    <AppShell user={user} runId={runId}>
       {inFlight && <meta httpEquiv="refresh" content="4" />}
       {run.is_demo && <DemoBanner />}
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Link href="/runs" className="link flex items-center gap-1 text-sm opacity-70">
-          <ArrowLeft className="h-4 w-4" aria-hidden /> Runs
-        </Link>
+      <div className="mb-4 flex flex-wrap items-baseline gap-3">
         <h1 className="text-2xl font-semibold">Run #{run.id}</h1>
         <span className="font-mono text-xs opacity-60">{run.filename} · {run.llm_model}</span>
-        <div className="ml-auto flex gap-3 text-sm">
-          <Link href={`/runs/${runId}/backlog`} className="link flex items-center gap-1">
-            <ListChecks className="h-4 w-4" aria-hidden /> Backlog
-          </Link>
-          <Link href={`/runs/${runId}/matrix`} className="link flex items-center gap-1">
-            <Network className="h-4 w-4" aria-hidden /> Matrix
-          </Link>
-        </div>
       </div>
 
       {run.status === 'failed' && (

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { requireUser } from '@/lib/auth/session.ts'
 import { sql } from '@/lib/db/client.ts'
 import { llmReachable } from '@/lib/ai/client.ts'
 import { getModelConfig, modelBlocker } from '@/lib/model/config.ts'
@@ -18,6 +18,7 @@ async function dbStatus() {
 }
 
 export default async function Health() {
+  const user = await requireUser()
   const [db, model, cfg, blocker] = await Promise.all([
     dbStatus(), llmReachable(), getModelConfig(), modelBlocker(),
   ])
@@ -33,11 +34,8 @@ export default async function Health() {
   ]
 
   return (
-    <AppShell>
-      <div className="mb-4 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Health</h1>
-        <Link href="/settings/model" className="link link-primary text-sm">Model settings</Link>
-      </div>
+    <AppShell user={user}>
+      <h1 className="mb-4 text-2xl font-semibold">Health</h1>
       <Card><CardContent className="p-0">
         <ul className="divide-y divide-[var(--color-border)]">
           {rows.map(([name, ok, detail]) => (
