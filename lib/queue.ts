@@ -9,23 +9,45 @@ export type GenerateJob = { runId: number }
 
 let boss: PgBoss | null = null
 
+/**
+ * Queue creation must not fail quietly.
+ *
+ * An earlier version swallowed every error here with `.catch(() => {})`. The generate
+ * queue then did not exist, `send()` returned null instead of throwing — pg-boss does not
+ * create a queue on demand — and a run sat at "queued" for ever with an audit row saying
+ * it had been enqueued. Silence at both ends produced a run nothing was ever going to pick
+ * up, and no error anywhere.
+ */
+async function ensureQueue(b: PgBoss, name: string) {
+  try {
+    await b.createQueue(name)
+  } catch (err) {
+    const msg = (err as Error).message ?? ''
+    if (/already exists|duplicate key/i.test(msg)) return
+    throw new Error(`could not create queue "${name}": ${msg}`)
+  }
+}
+
 export async function getBoss(): Promise<PgBoss> {
   if (boss) return boss
-  boss = new PgBoss({ connectionString: env.databaseUrl })
-  boss.on('error', (err) => console.error('[boss]', err))
-  await boss.start()
-  await boss.createQueue(QUEUE).catch(() => {})
-  return boss
+  const b = new PgBoss({ connectionString: env.databaseUrl })
+  b.on('error', (err) => console.error('[boss]', err))
+  await b.start()
+  await ensureQueue(b, QUEUE)
+  await ensureQueue(b, GENERATE_QUEUE)
+  boss = b
+  return b
 }
 
-export async function enqueueRun(job: RunJob) {
+/** Throws if no job was created, rather than reporting success for nothing. */
+async function send(queue: string, data: object): Promise<string> {
   const b = await getBoss()
-  // Retries matter here: the model lives on another machine over a tunnel that can drop
+  // Retries matter: the model lives on another machine over a tunnel that can drop
   // or a laptop that can sleep mid-run (D34).
-  return b.send(QUEUE, job, { retryLimit: 2, retryDelay: 10, expireInMinutes: 60 })
+  const id = await b.send(queue, data, { retryLimit: 2, retryDelay: 10, expireInMinutes: 120 })
+  if (!id) throw new Error(`queue "${queue}" accepted no job — it may not exist`)
+  return id
 }
 
-export async function enqueueGenerate(job: GenerateJob) {
-  const b = await getBoss()
-  return b.send(GENERATE_QUEUE, job, { retryLimit: 2, retryDelay: 10, expireInMinutes: 60 })
-}
+export const enqueueRun = (job: RunJob) => send(QUEUE, job)
+export const enqueueGenerate = (job: GenerateJob) => send(GENERATE_QUEUE, job)

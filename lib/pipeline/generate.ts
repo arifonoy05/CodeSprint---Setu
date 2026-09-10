@@ -89,5 +89,5 @@ export async function generateBacklog(runId: number) {
     await sql`UPDATE runs SET progress_done = ${++done} WHERE id = ${runId}`
   }
 
-  await sql`UPDATE runs SET status = 'ready', stage = NULL WHERE id = ${runId}`
+  await sql`UPDATE runs SET status = 'ready', stage = NULL, generate_job_id = NULL WHERE id = ${runId}`
 }

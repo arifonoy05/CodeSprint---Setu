@@ -16,8 +16,9 @@ export async function startGeneration(runId: number) {
   const [run] = await sql<any[]>`SELECT approved_at FROM runs WHERE id = ${runId}`
   if (!run?.approved_at) throw new Error('nothing is generated before sign-off')
 
-  await sql`UPDATE runs SET stage = 'queued', error = NULL WHERE id = ${runId}`
-  await enqueueGenerate({ runId })
+  const jobId = await enqueueGenerate({ runId })
+  await sql`UPDATE runs SET stage = 'queued', error = NULL, generate_job_id = ${jobId}
+            WHERE id = ${runId}`
   await audit({ actorId: user.id, action: 'backlog:generate', entityType: 'run', entityId: runId })
   revalidatePath(`/runs/${runId}/backlog`)
 }

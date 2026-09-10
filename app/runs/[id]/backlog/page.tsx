@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card.tsx'
 import { DemoBanner } from '@/app/demo-banner.tsx'
 import { Artifact } from './artifact.tsx'
 import { GenerateButton, ApproveBacklog } from './actions.tsx'
+import { generationStalled } from '@/lib/model/stalled.ts'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,8 @@ export default async function Backlog(
     LEFT JOIN users u ON u.id = r.backlog_approved_by WHERE r.id = ${runId}`
   if (!run) notFound()
 
-  const generating = run.status === 'generating' || run.stage === 'queued'
+  const stalled = await generationStalled(runId)
+  const generating = (run.status === 'generating' || run.stage === 'queued') && !stalled
   const rows = await sql<any[]>`
     SELECT r.id AS req_id, r.ref, coalesce(r.edited_text, r.ai_original) AS req_text,
            s.id AS story_id, s.criteria, s.ai_original AS s_orig, s.edited_text AS s_edit, s.status AS s_status
@@ -67,7 +69,20 @@ export default async function Backlog(
         </div>
       )}
 
-      {run.approved_at && !hasStories && !generating && (
+      {stalled && (
+        <div role="alert" className="alert alert-error mb-4 items-start">
+          <div>
+            <div className="font-semibold">Generation never started</div>
+            <p className="text-sm opacity-80">
+              This run was queued but no background job is running for it. Nothing was generated,
+              so starting again is safe.
+            </p>
+            <div className="mt-3"><GenerateButton runId={runId} label="Start generation again" /></div>
+          </div>
+        </div>
+      )}
+
+      {run.approved_at && !hasStories && !generating && !stalled && (
         <div className="mb-4"><GenerateButton runId={runId} label="Generate backlog" /></div>
       )}
 
