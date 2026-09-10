@@ -43,8 +43,10 @@ export default async function ModelSettings() {
         <CardContent>
           <ModelForm
             hasStoredKey={Boolean(cfg.apiKey)}
+            hasStoredEmbedKey={Boolean(cfg.embedApiKey)}
             initial={{
-              baseUrl: cfg.baseUrl, apiKey: '', chatModel: cfg.chatModel, embedModel: cfg.embedModel,
+              baseUrl: cfg.baseUrl, apiKey: '', chatModel: cfg.chatModel,
+              embedBaseUrl: cfg.embedBaseUrl, embedApiKey: '', embedModel: cfg.embedModel,
               reasoningEffort: cfg.reasoningEffort, egressAcknowledged: cfg.egressAcknowledged,
               verifiedAt: cfg.verifiedAt ? String(cfg.verifiedAt) : null, lastError: cfg.lastError,
             }}

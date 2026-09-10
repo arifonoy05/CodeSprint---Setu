@@ -29,3 +29,23 @@ test('nonsense input does not throw', () => {
   assert.equal(adviseUrl('not a url'), null)
   assert.equal(adviseUrl(''), null)
 })
+
+const { detectGateway } = await import('../lib/model/network.ts')
+
+test('a reseller is recognised, a local server is not', () => {
+  // Measured: a router on localhost offered 516 models named after vendors it does not own,
+  // while LM Studio offered 2. The address check passes for both — only the shape differs.
+  const router = detectGateway(['auto/best-coding', 'antigravity/claude-sonnet-4-6',
+                                'openai/gpt-4o', 'google/gemini-3-flash', 'cfp/qwen/qwq-32b'])
+  assert.equal(router.likely, true)
+  assert.ok(router.vendors.includes('claude') && router.vendors.includes('gemini'))
+
+  const local = detectGateway(['qwen/qwen3.5-9b', 'text-embedding-nomic-embed-text-v1.5'])
+  assert.equal(local.likely, false)
+  assert.deepEqual(local.vendors, [])
+})
+
+test('many models alone is enough of a signal', () => {
+  assert.equal(detectGateway(Array.from({ length: 40 }, (_, i) => `local-model-${i}`)).likely, true)
+  assert.equal(detectGateway(['a', 'b', 'c']).likely, false)
+})

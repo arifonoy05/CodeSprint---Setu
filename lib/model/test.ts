@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { assertPrivateEndpoint } from '../egress.ts'
 import { env } from '../env.ts'
-import { adviseUrl, type UrlAdvice } from './network.ts'
+import { adviseUrl, detectGateway, type UrlAdvice, type GatewaySignal } from './network.ts'
 
 export type TestReport = {
   ok: boolean
@@ -16,6 +16,8 @@ export type TestReport = {
   errors: string[]
   /** Set when the URL cannot work from where the call is made (e.g. loopback in a container). */
   advice?: UrlAdvice
+  /** A private address that appears to resell third-party models. */
+  gateway?: GatewaySignal
 }
 
 /**
@@ -50,6 +52,8 @@ const SCHEMA = {
  */
 export async function testModelEndpoint(input: {
   baseUrl: string; apiKey: string; chatModel: string; embedModel: string; reasoningEffort: string
+  /** Blank means "same endpoint as chat". */
+  embedBaseUrl?: string; embedApiKey?: string
 }): Promise<TestReport> {
   const r: TestReport = {
     ok: false, isPrivate: false, resolvedNote: '', chatOk: false,
@@ -78,6 +82,12 @@ export async function testModelEndpoint(input: {
     r.advice = adviseUrl(input.baseUrl)
     return r
   }
+  r.gateway = detectGateway(r.models)
+  if (r.gateway.likely && r.isPrivate) {
+    r.resolvedNote += ` It offers ${r.gateway.modelCount} models` +
+      (r.gateway.vendors.length ? ` including ${r.gateway.vendors.slice(0, 4).join(', ')}` : '') +
+      `, so it appears to forward to providers outside your network. The address check only sees the first hop.`
+  }
   if (r.models.length && !r.models.includes(input.chatModel)) {
     r.errors.push(`Chat model "${input.chatModel}" is not offered by this endpoint.`)
   }
@@ -105,8 +115,12 @@ export async function testModelEndpoint(input: {
     r.errors.push(`Chat call failed: ${(err as Error).message.slice(0, 200)}`)
   }
 
+  // Embeddings may live elsewhere — gateways commonly serve chat only.
+  const embedClient = input.embedBaseUrl
+    ? new OpenAI({ baseURL: input.embedBaseUrl, apiKey: input.embedApiKey || 'not-needed', maxRetries: 0, timeout: 60_000 })
+    : client
   try {
-    const e = await client.embeddings.create({
+    const e = await embedClient.embeddings.create({
       model: input.embedModel, input: 'loan disbursement retry', encoding_format: 'float',
     })
     r.embedDims = e.data[0]!.embedding.length
@@ -114,7 +128,8 @@ export async function testModelEndpoint(input: {
       r.errors.push(`Embeddings are ${r.embedDims}-dimensional; the database stores vector(${env.embedDims}). This needs a migration and a full re-index.`)
     }
   } catch (err) {
-    r.errors.push(`Embeddings failed: ${(err as Error).message.slice(0, 200)}`)
+    const where = input.embedBaseUrl ? input.embedBaseUrl : 'the chat endpoint'
+    r.errors.push(`Embeddings failed at ${where}: ${(err as Error).message.slice(0, 160)}`)
   }
 
   r.ok = r.chatOk && r.jsonSchemaOk && r.errors.length === 0

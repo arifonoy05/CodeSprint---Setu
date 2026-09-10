@@ -7,6 +7,9 @@ export type ModelConfig = {
   baseUrl: string
   apiKey: string
   chatModel: string
+  /** Blank means "same endpoint as chat". Gateways often serve chat only. */
+  embedBaseUrl: string
+  embedApiKey: string
   embedModel: string
   embedDims: number | null
   reasoningEffort: string
@@ -28,14 +31,17 @@ export async function getModelConfig(): Promise<ModelConfig> {
   if (!row) {
     return {
       id: null, baseUrl: env.llmBaseUrl, apiKey: env.llmApiKey,
-      chatModel: env.llmModel, embedModel: env.embedModel, embedDims: null,
+      chatModel: env.llmModel, embedBaseUrl: '', embedApiKey: '',
+      embedModel: env.embedModel, embedDims: null,
       reasoningEffort: env.reasoningEffort, isPrivate: true, egressAcknowledged: false,
       verifiedAt: null, lastError: null, lastReport: null, fromEnv: true,
     }
   }
   return {
     id: row.id, baseUrl: row.base_url, apiKey: decryptSecret(row.api_key_encrypted),
-    chatModel: row.chat_model, embedModel: row.embed_model, embedDims: row.embed_dims,
+    chatModel: row.chat_model,
+    embedBaseUrl: row.embed_base_url ?? '', embedApiKey: decryptSecret(row.embed_api_key_encrypted),
+    embedModel: row.embed_model, embedDims: row.embed_dims,
     reasoningEffort: row.reasoning_effort, isPrivate: row.is_private,
     egressAcknowledged: row.egress_acknowledged, verifiedAt: row.verified_at,
     lastError: row.last_error, lastReport: row.last_report, fromEnv: false,
@@ -58,9 +64,14 @@ export async function modelBlocker(): Promise<Blocker | null> {
     return { reason: 'Model connection not verified',
              detail: c.lastError ?? 'Test the connection to confirm the endpoint answers.' }
   }
-  if (!c.isPrivate && !c.egressAcknowledged) {
-    return { reason: 'Public endpoint not acknowledged',
-             detail: 'This endpoint is outside your network. Confirm that client business logic may leave it.' }
+  const forwards = (c.lastReport as any)?.gateway?.likely === true
+  if ((!c.isPrivate || forwards) && !c.egressAcknowledged) {
+    return {
+      reason: c.isPrivate ? 'Forwarding gateway not acknowledged' : 'Public endpoint not acknowledged',
+      detail: c.isPrivate
+        ? 'This endpoint is on your network but appears to resell third-party models, so prompts leave it. Confirm that client business logic may leave the network.'
+        : 'This endpoint is outside your network. Confirm that client business logic may leave it.',
+    }
   }
   if (c.embedDims && c.embedDims !== env.embedDims) {
     return { reason: `Embedding width mismatch (${c.embedDims} vs ${env.embedDims})`,

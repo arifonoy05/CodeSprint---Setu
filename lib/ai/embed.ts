@@ -1,4 +1,4 @@
-import { getLlm } from './client.ts'
+import { getEmbedder } from './client.ts'
 import { env } from '../env.ts'
 
 /**
@@ -14,7 +14,7 @@ const BATCH = 32
 
 export async function embed(texts: string[]): Promise<number[][]> {
   const out: number[][] = []
-  const { client, embedModel } = await getLlm()
+  const { client, embedModel } = await getEmbedder()
   for (let i = 0; i < texts.length; i += BATCH) {
     const res = await client.embeddings.create({
       model: embedModel,

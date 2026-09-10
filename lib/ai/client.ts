@@ -12,14 +12,24 @@ import { getModelConfig } from '../model/config.ts'
  * Built per call rather than once at import: the configuration can change while the
  * process is running, and a cached client would keep talking to the old endpoint.
  */
-export async function getLlm(): Promise<{ client: OpenAI; chatModel: string; embedModel: string; reasoningEffort: string }> {
+export async function getLlm(): Promise<{ client: OpenAI; chatModel: string; reasoningEffort: string }> {
   const c = await getModelConfig()
   return {
     client: new OpenAI({ baseURL: c.baseUrl, apiKey: c.apiKey || 'not-needed' }),
     chatModel: c.chatModel,
-    embedModel: c.embedModel,
     reasoningEffort: c.reasoningEffort,
   }
+}
+
+/**
+ * Embeddings may come from a different endpoint. Gateways commonly serve chat only, so
+ * the vector side often stays on a local server while chat goes elsewhere.
+ */
+export async function getEmbedder(): Promise<{ client: OpenAI; embedModel: string }> {
+  const c = await getModelConfig()
+  const baseURL = c.embedBaseUrl || c.baseUrl
+  const apiKey = (c.embedBaseUrl ? c.embedApiKey : c.apiKey) || 'not-needed'
+  return { client: new OpenAI({ baseURL, apiKey }), embedModel: c.embedModel }
 }
 
 /** D7: measured 215s -> 4s with reasoning off. */

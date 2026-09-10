@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 
-export function ModelForm({ initial, hasStoredKey }: {
+export function ModelForm({ initial, hasStoredKey, hasStoredEmbedKey }: {
   initial: ModelInput & { verifiedAt: string | null; lastError: string | null }
   hasStoredKey: boolean
+  hasStoredEmbedKey: boolean
 }) {
   const [form, setForm] = useState<ModelInput>(initial)
   const [clearKey, setClearKey] = useState(false)
@@ -41,6 +42,9 @@ export function ModelForm({ initial, hasStoredKey }: {
   const load = async () => {
     setLoading(true); setListError(undefined)
     const res = await fetchModels(form.baseUrl, clearKey ? '' : form.apiKey)
+    const embedRes = form.embedBaseUrl.trim()
+      ? await fetchModels(form.embedBaseUrl, form.embedApiKey)
+      : res
     setLoading(false)
     if (!res.ok) {
       setOffered(undefined); setListError(res.error)
@@ -48,16 +52,18 @@ export function ModelForm({ initial, hasStoredKey }: {
       return
     }
     setAdvice(null)
-    setOffered({ chat: res.chat, embed: res.embed })
+    const embed = embedRes.ok ? embedRes.embed : []
+    setOffered({ chat: res.chat, embed })
     setForm((f) => ({
       ...f,
       chatModel: res.chat.includes(f.chatModel) ? f.chatModel : res.chat[0] ?? f.chatModel,
-      embedModel: res.embed.includes(f.embedModel) ? f.embedModel : res.embed[0] ?? f.embedModel,
+      embedModel: embed.includes(f.embedModel) ? f.embedModel : embed[0] ?? f.embedModel,
     }))
     setReport(undefined)
   }
 
-  const needsAck = report && !report.isPrivate && !form.egressAcknowledged
+  const forwards = Boolean(report?.gateway?.likely)
+  const needsAck = report && (!report.isPrivate || forwards) && !form.egressAcknowledged
 
   return (
     <div className="grid gap-4">
@@ -147,6 +153,25 @@ export function ModelForm({ initial, hasStoredKey }: {
         </summary>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-sm sm:col-span-2">
+            <span className="font-medium">Embedding endpoint</span>
+            <Input value={form.embedBaseUrl} onChange={(e) => set('embedBaseUrl')(e.target.value)}
+                   placeholder="same as the chat endpoint" spellCheck={false} />
+            <span className="text-xs opacity-60">
+              Leave blank to use the chat endpoint. Many gateways serve chat only, so the vector
+              side usually stays on a local server.
+            </span>
+          </label>
+
+          {form.embedBaseUrl.trim() !== '' && (
+            <label className="grid gap-1.5 text-sm sm:col-span-2">
+              <span className="font-medium">Embedding endpoint API key <span className="font-normal opacity-60">— optional</span></span>
+              <Input type="password" value={form.embedApiKey}
+                     onChange={(e) => set('embedApiKey')(e.target.value)}
+                     placeholder={hasStoredEmbedKey ? '•••••••• (stored — leave blank to keep)' : 'not needed for a local server'} />
+            </label>
+          )}
+
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">Embedding model</span>
             {offered?.embed.length ? (
@@ -179,11 +204,15 @@ export function ModelForm({ initial, hasStoredKey }: {
         </div>
       </details>
 
-      {report && !report.isPrivate && (
+      {report && (!report.isPrivate || forwards) && (
         <div role="alert" className="alert alert-warning items-start">
           <AlertTriangle className="h-5 w-5" aria-hidden />
           <div>
-            <div className="font-semibold">This endpoint is outside your network</div>
+            <div className="font-semibold">
+              {report.isPrivate
+                ? 'This endpoint forwards to providers outside your network'
+                : 'This endpoint is outside your network'}
+            </div>
             <p className="text-sm opacity-80">{report.resolvedNote}</p>
             <label className="mt-2 flex items-start gap-2 text-sm">
               <input type="checkbox" className="checkbox checkbox-sm mt-0.5"
@@ -236,8 +265,13 @@ function Report({ report, saved }: { report: TestReport; saved: boolean }) {
       <ul className="text-sm">
         <Row ok={!!report.models} label="Endpoint reachable"
              detail={report.models ? `${report.models.length} models offered` : undefined} />
-        <Row ok={report.isPrivate} label={report.isPrivate ? 'Inside your network' : 'Public endpoint'}
-             detail={report.isPrivate ? undefined : 'client data will leave the network'} />
+        <Row ok={report.isPrivate && !report.gateway?.likely}
+             label={report.isPrivate
+               ? (report.gateway?.likely ? 'Private address, but forwards externally' : 'Inside your network')
+               : 'Public endpoint'}
+             detail={report.gateway?.likely
+               ? `${report.gateway.modelCount} models offered${report.gateway.vendors.length ? ` (${report.gateway.vendors.slice(0, 4).join(', ')})` : ''} — the address check only sees the first hop`
+               : report.isPrivate ? undefined : 'client data will leave the network'} />
         <Row ok={report.chatOk} label="Chat completion"
              detail={report.chatSeconds ? `${report.chatSeconds.toFixed(1)}s` : undefined} />
         <Row ok={report.jsonSchemaOk} label="Structured output (json_schema)"

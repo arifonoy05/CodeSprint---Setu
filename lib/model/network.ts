@@ -35,3 +35,31 @@ export function adviseUrl(rawUrl: string): UrlAdvice {
     suggestion: fixed.toString().replace(/\/$/, rawUrl.endsWith('/') ? '/' : ''),
   }
 }
+
+/** Vendor names that only appear when an endpoint is reselling someone else's models. */
+const THIRD_PARTY = [
+  'openai', 'gpt-', 'o1-', 'o3-', 'anthropic', 'claude', 'gemini', 'google',
+  'mistral', 'cohere', 'grok', 'xai', 'perplexity', 'deepseek', 'together',
+  'groq', 'fireworks', 'openrouter', 'bedrock', 'azure', 'vertex',
+]
+
+export type GatewaySignal = { likely: boolean; modelCount: number; vendors: string[] }
+
+/**
+ * A router on a private address passes the private-address check while forwarding prompts
+ * to public providers — the check only ever sees the first hop. Nothing in a network
+ * check can see the destination, so the honest move is to notice the shape of the model
+ * list and say so.
+ *
+ * A local server offers a handful of models it actually holds. A reseller offers hundreds,
+ * named after vendors it does not own.
+ */
+export function detectGateway(models: string[]): GatewaySignal {
+  const lower = models.map((m) => m.toLowerCase())
+  const vendors = [...new Set(THIRD_PARTY.filter((v) => lower.some((m) => m.includes(v))))]
+  return {
+    likely: models.length > 25 || vendors.length >= 2,
+    modelCount: models.length,
+    vendors,
+  }
+}
