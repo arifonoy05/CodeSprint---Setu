@@ -1,0 +1,45 @@
+{
+  "name": "setu",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx bin/preflight.ts --migrate && next dev",
+    "build": "next build",
+    "start": "tsx bin/preflight.ts --migrate && next start",
+    "worker": "tsx worker/index.ts",
+    "migrate": "tsx lib/db/migrate.ts",
+    "seed": "tsx lib/db/seed.ts",
+    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "preflight": "tsx bin/preflight.ts",
+    "fixtures:check": "tsx eval/validate-fixtures.ts",
+    "fixtures:docx": "tsx scripts/build-srs-docx.ts",
+    "index": "tsx scripts/index-fixtures.ts",
+    "eval:extraction": "tsx eval/extraction.ts",
+    "eval:gaps": "tsx eval/gaps.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "snapshot:demo": "tsx scripts/snapshot-demo.ts"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "docx": "^9.7.1",
+    "drizzle-orm": "^0.44.5",
+    "exceljs": "^4.4.0",
+    "iron-session": "^8.0.4",
+    "mammoth": "^1.12.2",
+    "next": "15.5.4",
+    "openai": "^6.2.0",
+    "pg-boss": "^10.3.2",
+    "postgres": "^3.4.7",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "unpdf": "^1.8.1",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/react": "^19.1.13",
+    "drizzle-kit": "^0.31.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}

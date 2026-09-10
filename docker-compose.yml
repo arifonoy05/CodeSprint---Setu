@@ -1,0 +1,43 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: setu
+      POSTGRES_PASSWORD: setu
+      POSTGRES_DB: setu
+    # D6: host 5433 — Homebrew Postgres already holds 5432.
+    ports: ["5433:5432"]
+    volumes: ["setu-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U setu"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    command: sh -c "npx tsx bin/preflight.ts --migrate && node server.js"
+    environment: &llm
+      DATABASE_URL: postgres://setu:setu@db:5432/setu
+      # D34: the model lives outside compose, reached over a reverse tunnel.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.5-9b}
+      LLM_REASONING_EFFORT: none
+      EMBED_MODEL: ${EMBED_MODEL:-text-embedding-nomic-embed-text-v1.5}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-at-least-32-chars-long!}
+    ports: ["3000:3000"]
+    # Lets the container reach the tunnel bound on the host bridge.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  worker:
+    build: .
+    command: npx tsx worker/index.ts
+    environment: *llm
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  setu-db:

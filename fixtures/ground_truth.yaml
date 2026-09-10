@@ -1,0 +1,307 @@
+# Answer key for the fixture SRS.
+#
+# Two independent things live here (D11):
+#   requirements — the segmentation extraction is expected to produce
+#   gaps         — what the four gap checks are expected to find
+#
+# Every gap names the assumption it rests on (D35). Overturning an assumption in
+# ASSUMPTIONS.md changes only the entries tagged with it — grep, not rewrite.
+#
+# evidence ids come from the fixture corpus and must all exist: `npm run fixtures:check`
+#
+# EVIDENCE, AND WHY THERE ARE TWO LISTS
+#
+#   evidence_core  the one or two chunks originally authored — the most direct evidence
+#   evidence       every chunk a BA would accept as showing this gap
+#
+# `evidence` is what the eval matches on. It is derived by ONE rule applied uniformly to
+# all 30 gaps, not case by case:
+#
+#     the incident report that documents the gap,
+#     the function that exhibits it,
+#     and the table whose structure permits it
+#     — whichever of those exist.
+#
+# Why this exists: measured strict recall was 0.53 against loose recall 0.87. The tool was
+# finding the right gap on the right requirement and citing adjacent-but-legitimate
+# evidence — a dependency evidenced by the incident describing its symptom rather than the
+# table carrying it. A single "correct" citation per gap was too narrow a measuring
+# instrument, not a fault in the finding.
+#
+# This widening was made AFTER seeing that result, which is exactly how one fools oneself.
+# Hence: one uniform rule rather than judgement, evidence_core kept so the change is
+# auditable, and BA sign-off required (see EVIDENCE-REVIEW.md) before any number derived
+# from it is reported outside this repository.
+
+requirements:
+  - ref: REQ-001
+    text: A loan officer shall be able to disburse an approved loan to the borrower in a single transaction.
+    classification: functional
+  - ref: REQ-002
+    text: The system shall record each disbursement together with the reference returned by the core banking ledger.
+    classification: functional
+  - ref: REQ-003
+    text: The system shall update the status of the loan to reflect that it has been disbursed.
+    classification: functional
+  - ref: REQ-004
+    text: The system shall support partial disbursement in tranches against project milestones.
+    classification: functional
+  - ref: REQ-005
+    text: The total value released across all tranches must never exceed the sanctioned principal.
+    classification: business_rule
+  - ref: REQ-006
+    text: Once a loan has been disbursed the system shall generate the repayment schedule automatically, without officer intervention.
+    classification: functional
+  - ref: REQ-007
+    text: The first installment shall fall due one month after disbursement.
+    classification: business_rule
+  - ref: REQ-008
+    text: Installments shall be calculated on a reducing balance basis using the interest rate agreed at sanction.
+    classification: business_rule
+  - ref: REQ-009
+    text: Where a loan is restructured, the schedule shall be regenerated to reflect the revised tenor.
+    classification: functional
+  - ref: REQ-010
+    text: The system shall verify borrower eligibility immediately before funds are released, and not rely solely on checks performed at approval.
+    classification: functional
+  - ref: REQ-011
+    text: Borrowers who have been blacklisted by the compliance team must not receive funds under any circumstances.
+    classification: business_rule
+  - ref: REQ-012
+    text: The system shall enforce the single borrower exposure limit set out in the credit policy.
+    classification: business_rule
+  - ref: REQ-013
+    text: The system shall provide a bulk disbursement facility so that an operations user can release payroll-backed loans together.
+    classification: functional
+  - ref: REQ-014
+    text: Finance requires a daily disbursement report.
+    classification: functional
+  - ref: REQ-015
+    text: Disbursement should complete quickly so that officers are not left waiting at the counter.
+    classification: non_functional
+  - ref: REQ-016
+    text: All actions performed in the module must be auditable.
+    classification: non_functional
+
+# ---------------------------------------------------------------------------
+# 30 planted gaps. No class below 6 (D18).
+# ---------------------------------------------------------------------------
+gaps:
+
+  # --- missing acceptance criteria (8) -------------------------------------
+  - id: G01
+    req: REQ-001
+    gap_class: missing_ac
+    evidence_core: [REQ-001]
+    evidence: [REQ-001, REQ-002, REQ-003]
+    assumes: A6
+    note: '"single transaction" is never defined; no criteria for the ledger succeeding and the local write failing'
+  - id: G02
+    req: REQ-004
+    gap_class: missing_ac
+    evidence_core: [REQ-004]
+    evidence: [REQ-004, REQ-005]
+    assumes: A5
+    note: what constitutes a milestone, who confirms it, and how many tranches are permitted are all unstated
+  - id: G03
+    req: REQ-008
+    gap_class: missing_ac
+    evidence_core: [REQ-008]
+    evidence: [REQ-008, REQ-007]
+    assumes: A2
+    note: no rounding convention and no rule for the residual on the final installment
+  - id: G04
+    req: REQ-009
+    gap_class: missing_ac
+    evidence_core: [REQ-009]
+    evidence: [REQ-009, REQ-006, REQ-008]
+    assumes: A2
+    note: restructure behaviour for partially paid installments is undefined
+  - id: G05
+    req: REQ-013
+    gap_class: missing_ac
+    evidence_core: [REQ-013]
+    evidence: [REQ-013, REQ-010, REQ-001]
+    assumes: A4
+    note: no criteria for partial batch failure — whether the batch stops, skips or rolls back
+  - id: G06
+    req: REQ-014
+    gap_class: missing_ac
+    evidence_core: [REQ-014]
+    evidence: [REQ-014, REQ-002]
+    assumes: A1
+    note: one sentence with no content, format, delivery mechanism or cut-off time
+  - id: G07
+    req: REQ-015
+    gap_class: missing_ac
+    evidence_core: [REQ-015]
+    evidence: [REQ-015, REQ-001]
+    assumes: A6
+    note: '"quickly" is unmeasurable — no target, no percentile, no load assumption'
+  - id: G08
+    req: REQ-016
+    gap_class: missing_ac
+    evidence_core: [REQ-016]
+    evidence: [REQ-016, REQ-002]
+    assumes: A1
+    note: '"auditable" without fields, retention period or who may read the trail'
+
+  # --- unspecified failure paths (8) ---------------------------------------
+  - id: G09
+    req: REQ-001
+    gap_class: failure_path
+    evidence_core: [R-1041, C-disbursement_service.disburse]
+    evidence: [R-1041, C-disbursement_service.disburse, C-disbursement_service.createDisbursementTxn, T-disbursement_txn]
+    assumes: A6
+    note: retry after timeout disburses twice; no idempotency key and no unique constraint
+  - id: G10
+    req: REQ-001
+    gap_class: failure_path
+    evidence_core: [R-1071, C-disbursement_service.disburse]
+    evidence: [R-1071, C-disbursement_service.disburse, C-ledger_client.postToLedger, C-disbursement_service.attachLedgerRef, T-disbursement_txn]
+    assumes: A6
+    note: crash after the ledger posting leaves money moved with no record of it
+  - id: G11
+    req: REQ-002
+    gap_class: failure_path
+    evidence_core: [R-1071, T-disbursement_txn]
+    evidence: [R-1071, T-disbursement_txn, C-disbursement_service.attachLedgerRef, C-ledger_client.postToLedger]
+    assumes: A6
+    note: ledger_ref is nullable and written after posting, so a null is indistinguishable from a failed post
+  - id: G12
+    req: REQ-005
+    gap_class: failure_path
+    evidence_core: [R-1063, C-disbursement_service.totalReleased]
+    evidence: [R-1063, C-disbursement_service.totalReleased, C-disbursement_service.disburseTranche, T-disbursement_txn]
+    assumes: A5
+    note: concurrent tranche releases both read the total before either writes
+  - id: G13
+    req: REQ-006
+    gap_class: failure_path
+    evidence_core: [R-1047, C-repayment_schedule.buildSchedule]
+    evidence: [R-1047, C-repayment_schedule.buildSchedule, T-holiday_calendar, C-repayment_schedule.addMonths, T-loan_schedule]
+    assumes: A2
+    note: due dates land on holidays and weekends; auto-debit fails and performing loans are flagged
+  - id: G14
+    req: REQ-009
+    gap_class: failure_path
+    evidence_core: [R-1085, C-repayment_schedule.rebuildSchedule]
+    evidence: [R-1085, C-repayment_schedule.rebuildSchedule, T-loan_schedule, T-repayment]
+    assumes: A2
+    note: regeneration deletes partially paid rows, orphaning repayment references
+  - id: G15
+    req: REQ-010
+    gap_class: failure_path
+    evidence_core: [R-1092, C-ledger_client.postToLedger]
+    evidence: [R-1092, C-ledger_client.postToLedger, C-eligibility_rules.checkEligibility, T-loan, T-borrower]
+    assumes: A4
+    note: borrower account may be closed between application and disbursement; a 2xx is treated as success
+  - id: G16
+    req: REQ-008
+    gap_class: failure_path
+    evidence_core: [R-1104, C-eligibility_rules.calculateEmi]
+    evidence: [R-1104, C-eligibility_rules.calculateEmi, T-loan_schedule, C-repayment_schedule.buildSchedule]
+    assumes: A2
+    note: rounding drift over long tenors leaves the final installment disputed
+
+  # --- contradictions with existing behaviour (7) ---------------------------
+  - id: G17
+    req: REQ-001
+    gap_class: contradiction
+    evidence_core: [REQ-004, C-disbursement_service.disburseTranche]
+    evidence: [REQ-004, C-disbursement_service.disburseTranche, C-disbursement_service.disburse, C-disbursement_service.totalReleased, T-disbursement_txn]
+    assumes: A5
+    note: '"a single transaction" contradicts tranche disbursement, which creates several'
+  - id: G18
+    req: REQ-003
+    gap_class: contradiction
+    evidence_core: [C-disbursement_service.disburseTranche]
+    evidence: [C-disbursement_service.disburseTranche, C-loan_repository.markDisbursed, C-loan_repository.updateLoanStatus, T-loan]
+    assumes: A5
+    note: status is only set to DISBURSED when the last tranche lands, so a part-disbursed loan reads as APPROVED
+  - id: G19
+    req: REQ-011
+    gap_class: contradiction
+    evidence_core: [R-1078, C-disbursement_service.createDisbursementTxn]
+    evidence: [R-1078, C-disbursement_service.createDisbursementTxn, C-eligibility_rules.checkEligibility, C-disbursement_service.disburse, T-borrower]
+    assumes: A4
+    note: the batch path writes transactions directly and never calls the eligibility gate
+  - id: G20
+    req: REQ-013
+    gap_class: contradiction
+    evidence_core: [R-1078, C-eligibility_rules.checkEligibility]
+    evidence: [R-1078, C-eligibility_rules.checkEligibility, C-disbursement_service.createDisbursementTxn, C-disbursement_service.disburse]
+    assumes: A4
+    note: bulk disbursement as built bypasses the very check REQ-010 requires
+  - id: G21
+    req: REQ-007
+    gap_class: contradiction
+    evidence_core: [C-repayment_schedule.buildSchedule, C-disbursement_service.disburseTranche]
+    evidence: [C-repayment_schedule.buildSchedule, C-disbursement_service.disburseTranche, C-repayment_schedule.addMonths, T-loan_schedule]
+    assumes: A5
+    note: '"one month after disbursement" is ambiguous for tranches; the code uses the date of the last one'
+  - id: G22
+    req: REQ-012
+    gap_class: contradiction
+    evidence_core: [C-eligibility_rules.totalExposure]
+    evidence: [C-eligibility_rules.totalExposure, C-eligibility_rules.checkEligibility, T-loan]
+    assumes: A4
+    note: exposure counts only DISBURSED loans, so approved-but-undisbursed lending is invisible to the limit
+  - id: G23
+    req: REQ-006
+    gap_class: contradiction
+    evidence_core: [C-disbursement_service.disburseTranche, C-repayment_schedule.buildSchedule]
+    evidence: [C-disbursement_service.disburseTranche, C-repayment_schedule.buildSchedule, C-disbursement_service.disburse, T-loan_schedule]
+    assumes: A5
+    note: schedule generation is skipped entirely for part-disbursed loans, contradicting "automatically"
+
+  # --- hidden cross-module dependencies (7) --------------------------------
+  - id: G24
+    req: REQ-006
+    gap_class: dependency
+    evidence_core: [T-holiday_calendar]
+    evidence: [T-holiday_calendar, C-repayment_schedule.buildSchedule, C-repayment_schedule.addMonths, R-1047]
+    assumes: A2
+    note: a holiday calendar table exists and is maintained by Operations, but nothing reads it
+  - id: G25
+    req: REQ-001
+    gap_class: dependency
+    evidence_core: [C-ledger_client.postToLedger]
+    evidence: [C-ledger_client.postToLedger, C-disbursement_service.disburse, R-1071, T-disbursement_txn]
+    assumes: A6
+    note: depends on the core banking gateway, whose availability window the SRS never states
+  - id: G26
+    req: REQ-003
+    gap_class: dependency
+    evidence_core: [R-1052]
+    evidence: [R-1052, C-loan_repository.markDisbursed, T-loan, T-disbursement_txn]
+    assumes: A1
+    note: Finance reverses disbursements outside this module and nothing notifies it, so status goes stale
+  - id: G27
+    req: REQ-009
+    gap_class: dependency
+    evidence_core: [T-repayment, T-loan_schedule]
+    evidence: [T-repayment, T-loan_schedule, C-repayment_schedule.rebuildSchedule, R-1085]
+    assumes: A2
+    note: repayment rows reference schedule rows with no defined foreign key action on regeneration
+  - id: G28
+    req: REQ-014
+    gap_class: dependency
+    evidence_core: [T-disbursement_txn, T-loan]
+    evidence: [T-disbursement_txn, T-loan, R-1052, C-disbursement_service.createDisbursementTxn]
+    assumes: A1
+    note: the report spans two tables whose reconciliation is already known to drift
+  - id: G29
+    req: REQ-011
+    gap_class: dependency
+    evidence_core: [T-borrower]
+    evidence: [T-borrower, C-eligibility_rules.checkEligibility, R-1078]
+    assumes: A4
+    note: the blacklist flag lives on borrower and is set by Compliance after approval; no re-check is specified
+  - id: G30
+    req: REQ-012
+    gap_class: dependency
+    evidence_core: [T-loan, C-eligibility_rules.totalExposure]
+    evidence: [T-loan, C-eligibility_rules.totalExposure, C-eligibility_rules.checkEligibility, T-borrower]
+    assumes: A4
+    note: the limit is enforced per borrower across loans, a relationship the requirement never mentions
