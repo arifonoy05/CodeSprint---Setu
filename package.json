@@ -17,7 +17,8 @@
     "eval:extraction": "tsx eval/extraction.ts",
     "eval:gaps": "tsx eval/gaps.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "snapshot:demo": "tsx scripts/snapshot-demo.ts"
+    "snapshot:demo": "tsx scripts/snapshot-demo.ts",
+    "probe:endpoint": "tsx scripts/probe-endpoint.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

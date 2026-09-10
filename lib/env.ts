@@ -6,6 +6,7 @@
 export const env = {
   llmBaseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:1234/v1',
   llmModel: process.env.LLM_MODEL ?? 'qwen/qwen3.5-9b',
+  llmApiKey: process.env.LLM_API_KEY ?? '',
   /** D7: measured 215s -> 4s. Not a tuning knob. */
   reasoningEffort: process.env.LLM_REASONING_EFFORT ?? 'none',
   embedModel: process.env.EMBED_MODEL ?? 'text-embedding-nomic-embed-text-v1.5',
