@@ -9,6 +9,7 @@ export const ROLES = ['superadmin', 'ba', 'dev', 'qa', 'pm'] as const
 export type Role = (typeof ROLES)[number]
 
 export const GATED = {
+  'model:configure': ['superadmin'], // the endpoint decides where client data goes
   'document:upload': ['ba', 'superadmin'], // starts an expensive run; BA owns the document
   'finding:dismiss': ['ba', 'superadmin'],
   'srs:approve': ['ba', 'superadmin'], // the human gate the whole design turns on

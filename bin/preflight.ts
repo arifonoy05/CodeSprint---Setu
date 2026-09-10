@@ -1,16 +1,15 @@
 /**
- * D31: refuse to start against a public model endpoint.
+ * Migrations before the app or worker starts.
  *
- * Runs as a step before next dev/start and before the worker — deliberately outside the
- * bundler. Next compiles instrumentation.ts for the edge runtime as well as node, and
- * node:dns cannot be bundled for edge, so the idiomatic hook cannot host this check.
- * A preflight process is simpler anyway: one guarantee, one place, every entry point.
+ * This used to refuse to boot against a public model endpoint (D31). The endpoint now
+ * lives in the database and is set through Settings, so a boot-time check on an
+ * environment variable would test the wrong thing — and would make the app unstartable
+ * precisely when someone needs to open Settings and fix it. The check still runs, at the
+ * point where it can do something useful: the connection test, which records whether the
+ * endpoint is private and requires an explicit acknowledgement when it is not.
  */
-import { assertEgressPolicy } from '../lib/egress.ts'
 import { migrate } from '../lib/db/migrate.ts'
 import { sql } from '../lib/db/client.ts'
-
-await assertEgressPolicy()
 
 if (process.argv.includes('--migrate')) {
   await migrate()

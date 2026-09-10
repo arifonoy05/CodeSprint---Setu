@@ -1,12 +1,12 @@
-import { llm } from './client.ts'
-import { env } from '../env.ts'
+import { getLlm, reasoningParam } from './client.ts'
 
 const call = async <T>(prompt: string, schema: unknown, fallback: T): Promise<T> => {
-  const res = await llm.chat.completions.create({
-    model: env.llmModel,
+  const { client, chatModel, reasoningEffort } = await getLlm()
+  const res = await client.chat.completions.create({
+    model: chatModel,
     messages: [{ role: 'user', content: prompt }],
     response_format: schema as never,
-    ...({ reasoning_effort: env.reasoningEffort } as Record<string, unknown>), // D7
+    ...reasoningParam(reasoningEffort), // D7
   })
   try {
     return JSON.parse(res.choices[0]?.message?.content ?? '') as T

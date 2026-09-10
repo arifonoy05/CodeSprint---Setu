@@ -1,6 +1,6 @@
 # Setu — Design Decisions
 
-Shared understanding from the grilling session. **35 decisions.**
+Shared understanding from the grilling session. **36 decisions.**
 Amended after review: D3×D8 had a blocking contradiction · D11's fixture format was wrong ·
 D6/D7 changed with the runtime · D3/D6/D9/D12/D13/D15/D16 amended by D23–D33 · D31 amended by D34.
 Derived from the BRD: *Setu — From SRS to Sprint-Ready Backlog* (Anindo Dey, PIN 1808, BRAC IT CodeSprint 2026).
@@ -454,7 +454,14 @@ Record `trace_links(requirement_id, story_id, test_id)` at generation time. **On
 fewer failure mode.** Semantic matching becomes necessary only if external stories or tests are ever
 imported — say that plainly rather than implementing it now.
 
-### 31. Zero egress is asserted at startup, not just claimed
+### 31. Zero egress: asserted at the endpoint, acknowledged when public
+> **Amended by D36.** The endpoint now lives in the database, set through Settings, so a
+> boot-time check on an environment variable would test the wrong value — and would make the
+> app unstartable precisely when someone needs to open Settings to fix it. The check moved to
+> the connection test, and a public endpoint is possible but requires an explicit
+> acknowledgement. Original reasoning below.
+
+
 Success criterion says *"demonstrable in network logs"*. D7 only made the URL auditable. Add a
 startup assertion that `LLM_BASE_URL` resolves to RFC1918 or loopback, and run the app service on a
 compose network with no external route. The process **refuses to boot** against a public host.
@@ -536,6 +543,30 @@ A3  RCA ids look like RCA-1041; root cause stated, not just symptom
 If the BA overturns A1, the blast radius is a grep, not a rewrite. Without this, one wrong domain
 assumption silently invalidates the ground truth that every quality number depends on.
 `ponytail:` assumption tags cost one YAML key and make a BA's correction a localised edit.
+
+### 36. The model endpoint is configured in the app, not the environment
+Changing the endpoint meant editing `.env` and redeploying both services, and nothing verified it
+until an analysis failed halfway through. It now lives in `model_config`, set by a superadmin at
+**Settings → Model**: URL, optional API key, chat and embedding model, reasoning effort.
+
+**Nothing runs until a connection test passes.** The test checks what Setu actually depends on
+rather than that the endpoint answers — `json_schema` compliance, whether `reasoning_effort` is
+honoured, and embedding width against the `vector(768)` the schema stores. Each of those otherwise
+surfaces minutes into a run. `verified_at` is set only by a passing test, and both the upload
+endpoint and backlog generation refuse while a blocker stands; the UI hiding the control is
+presentation, not the control.
+
+**API keys are encrypted at rest** (AES-256-GCM, key derived from `SESSION_SECRET`) and never sent
+back to the browser — the form shows a masked hint and an empty field means "keep the stored key".
+
+**This supersedes part of D31, and weakens the BRD's central promise.** The BRD says all inference
+runs on internally hosted models and client business logic never leaves the network. Pointing Setu
+at a hosted provider breaks that. It is now possible, but never silently: the test resolves the
+endpoint, and a public one cannot be saved as verified until someone ticks a box stating that
+requirement text, source code and incident history will leave the network. The choice is recorded
+in `audit_log` and shown on the health page.
+`ponytail:` one active configuration. Per-environment or per-run endpoints are a table with more
+rows, not a redesign.
 
 ---
 

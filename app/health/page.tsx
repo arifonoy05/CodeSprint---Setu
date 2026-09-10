@@ -1,6 +1,7 @@
+import Link from 'next/link'
 import { sql } from '@/lib/db/client.ts'
 import { llmReachable } from '@/lib/ai/client.ts'
-import { env } from '@/lib/env.ts'
+import { getModelConfig, modelBlocker } from '@/lib/model/config.ts'
 import { AppShell } from '@/components/app-shell.tsx'
 import { Card, CardContent } from '@/components/ui/card.tsx'
 import { CheckCircle2, XCircle } from 'lucide-react'
@@ -17,18 +18,26 @@ async function dbStatus() {
 }
 
 export default async function Health() {
-  const [db, model] = await Promise.all([dbStatus(), llmReachable()])
+  const [db, model, cfg, blocker] = await Promise.all([
+    dbStatus(), llmReachable(), getModelConfig(), modelBlocker(),
+  ])
   const rows: [string, boolean, string][] = [
     ['Database', db.ok, db.detail],
-    ['Model endpoint', model.ok, model.ok ? env.llmBaseUrl : model.error ?? 'unreachable'],
-    ['Chat model', !!model.models?.includes(env.llmModel), env.llmModel],
-    ['Embedding model', !!model.models?.includes(env.embedModel), `${env.embedModel} (${env.embedDims}d)`],
-    ['Egress policy', true, 'endpoint asserted private at boot (D31)'],
+    ['Model endpoint', model.ok, model.ok ? cfg.baseUrl : model.error ?? 'unreachable'],
+    ['Chat model', !!model.models?.includes(cfg.chatModel), cfg.chatModel],
+    ['Embedding model', !!model.models?.includes(cfg.embedModel),
+      `${cfg.embedModel}${cfg.embedDims ? ` (${cfg.embedDims}d)` : ''}`],
+    ['Network', cfg.isPrivate, cfg.isPrivate ? 'endpoint is inside your network'
+      : cfg.egressAcknowledged ? 'PUBLIC endpoint, acknowledged' : 'PUBLIC endpoint, not acknowledged'],
+    ['Ready to run', !blocker, blocker ? `${blocker.reason} — ${blocker.detail}` : 'verified'],
   ]
 
   return (
     <AppShell>
-      <h1 className="mb-4 text-2xl font-semibold">Health</h1>
+      <div className="mb-4 flex items-center gap-3">
+        <h1 className="text-2xl font-semibold">Health</h1>
+        <Link href="/settings/model" className="link link-primary text-sm">Model settings</Link>
+      </div>
       <Card><CardContent className="p-0">
         <ul className="divide-y divide-[var(--color-border)]">
           {rows.map(([name, ok, detail]) => (

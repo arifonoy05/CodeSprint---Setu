@@ -1,5 +1,4 @@
-import { llm } from './client.ts'
-import { env } from '../env.ts'
+import { getLlm, reasoningParam } from './client.ts'
 
 export type ExtractedRequirement = {
   ref: string
@@ -59,12 +58,12 @@ Document:
 ---`
 
 export async function extractRequirements(documentText: string): Promise<ExtractedRequirement[]> {
-  const res = await llm.chat.completions.create({
-    model: env.llmModel,
+  const { client, chatModel, reasoningEffort } = await getLlm()
+  const res = await client.chat.completions.create({
+    model: chatModel,
     messages: [{ role: 'user', content: PROMPT.replace('{{DOC}}', documentText) }],
     response_format: SCHEMA as never,
-    // D7: 215s -> 4s. Always.
-    ...({ reasoning_effort: env.reasoningEffort } as Record<string, unknown>),
+    ...reasoningParam(reasoningEffort), // D7: 215s -> 4s. Always.
   })
   const raw = res.choices[0]?.message?.content ?? '{"requirements":[]}'
   const parsed = JSON.parse(raw) as { requirements: ExtractedRequirement[] }

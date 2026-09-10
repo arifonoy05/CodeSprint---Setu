@@ -5,10 +5,19 @@ import { enqueueRun } from '@/lib/queue.ts'
 import { apiUser, isResponse } from '@/lib/auth/api.ts'
 import { audit } from '@/lib/auth/audit.ts'
 import { env } from '@/lib/env.ts'
+import { modelBlocker } from '@/lib/model/config.ts'
 
 export async function POST(req: Request) {
   const user = await apiUser('document:upload')
   if (isResponse(user)) return user
+
+  // The UI hides the upload when blocked; this is what actually enforces it. A run makes
+  // dozens of model calls, so starting one against an unverified endpoint wastes minutes
+  // and fails halfway, leaving a half-built run behind.
+  const blocked = await modelBlocker()
+  if (blocked) {
+    return NextResponse.json({ error: `${blocked.reason}. ${blocked.detail}` }, { status: 503 })
+  }
 
   const form = await req.formData()
   const file = form.get('file')

@@ -1,5 +1,4 @@
-import { llm } from './client.ts'
-import { env } from '../env.ts'
+import { getLlm, reasoningParam } from './client.ts'
 import type { Retrieved } from '../rag/store.ts'
 import { CHECKS, type GapClass } from '../rag/checks.ts'
 import type { RawFinding } from '../pipeline/postprocess.ts'
@@ -70,11 +69,12 @@ ${evidenceBlock}
 Requirement ${opts.requirementRef}:
 ${opts.requirementText}`
 
-  const res = await llm.chat.completions.create({
-    model: env.llmModel,
+  const { client, chatModel, reasoningEffort } = await getLlm()
+  const res = await client.chat.completions.create({
+    model: chatModel,
     messages: [{ role: 'user', content: prompt }],
     response_format: SCHEMA as never,
-    ...({ reasoning_effort: env.reasoningEffort } as Record<string, unknown>), // D7
+    ...reasoningParam(reasoningEffort), // D7
   })
   const raw = res.choices[0]?.message?.content ?? '{"findings":[]}'
   try {

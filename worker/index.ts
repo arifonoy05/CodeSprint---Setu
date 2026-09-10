@@ -1,11 +1,9 @@
-import { assertEgressPolicy } from '../lib/egress.ts'
 import { migrate } from '../lib/db/migrate.ts'
 import { sql } from '../lib/db/client.ts'
 import { getBoss, QUEUE, GENERATE_QUEUE, type RunJob, type GenerateJob } from '../lib/queue.ts'
 import { processRun } from '../lib/pipeline/run.ts'
 import { generateBacklog } from '../lib/pipeline/generate.ts'
 
-await assertEgressPolicy() // D31 — the worker calls the model too
 await migrate()
 
 const boss = await getBoss()

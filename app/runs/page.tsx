@@ -6,6 +6,7 @@ import { AppShell } from '@/components/app-shell.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { Card, CardContent } from '@/components/ui/card.tsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx'
+import { ModelGate } from '@/components/model-gate.tsx'
 import { Upload } from './upload.tsx'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,11 @@ export default async function Runs() {
   return (
     <AppShell user={user}>
       <h1 className="mb-4 text-2xl font-semibold">Runs</h1>
-      {can(user.role, 'document:upload') && <div className="mb-6"><Upload /></div>}
+      <div className="mb-6">
+        <ModelGate role={user.role}>
+          {can(user.role, 'document:upload') ? <Upload /> : <></>}
+        </ModelGate>
+      </div>
 
       <Card>
         <CardContent className="p-0">

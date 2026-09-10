@@ -1,4 +1,4 @@
-import { llm } from './client.ts'
+import { getLlm } from './client.ts'
 import { env } from '../env.ts'
 
 /**
@@ -14,9 +14,10 @@ const BATCH = 32
 
 export async function embed(texts: string[]): Promise<number[][]> {
   const out: number[][] = []
+  const { client, embedModel } = await getLlm()
   for (let i = 0; i < texts.length; i += BATCH) {
-    const res = await llm.embeddings.create({
-      model: env.embedModel,
+    const res = await client.embeddings.create({
+      model: embedModel,
       input: texts.slice(i, i + BATCH),
       encoding_format: 'float',
     })

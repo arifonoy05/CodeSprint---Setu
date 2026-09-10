@@ -6,10 +6,13 @@ import { requireUser } from '../auth/session.ts'
 import { can } from '../auth/roles.ts'
 import { audit } from '../auth/audit.ts'
 import { enqueueGenerate } from '../queue.ts'
+import { modelBlocker } from '../model/config.ts'
 
 export async function startGeneration(runId: number) {
   const user = await requireUser()
   if (!can(user.role, 'srs:approve')) throw new Error(`${user.role} may not generate the backlog`)
+  const blocked = await modelBlocker()
+  if (blocked) throw new Error(`${blocked.reason}. ${blocked.detail}`)
   const [run] = await sql<any[]>`SELECT approved_at FROM runs WHERE id = ${runId}`
   if (!run?.approved_at) throw new Error('nothing is generated before sign-off')
 

@@ -23,6 +23,13 @@ test('export and push allow PM as well', () => {
   assert.equal(can('dev', 'artifact:export'), false)
 })
 
+test('only a superadmin may configure the model endpoint', () => {
+  // The endpoint decides whether client business logic leaves the network.
+  assert.equal(can('superadmin', 'model:configure'), true)
+  for (const r of ['ba', 'dev', 'qa', 'pm'] as const)
+    assert.equal(can(r, 'model:configure'), false, r)
+})
+
 test('uploading a document is BA-only — it starts an expensive run', () => {
   assert.equal(can('ba', 'document:upload'), true)
   assert.equal(can('qa', 'document:upload'), false)
@@ -30,7 +37,7 @@ test('uploading a document is BA-only — it starts an expensive run', () => {
 })
 
 test('superadmin can do every gated action', () => {
-  for (const a of ['document:upload', 'finding:dismiss', 'srs:approve', 'backlog:approve',
+  for (const a of ['model:configure', 'document:upload', 'finding:dismiss', 'srs:approve', 'backlog:approve',
                    'artifact:export', 'artifact:push'] as const)
     assert.equal(can('superadmin', a), true, a)
 })

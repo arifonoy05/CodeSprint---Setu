@@ -18,6 +18,31 @@ The model is **not** part of compose — it runs on a separate machine (D34).
 
 ## Connecting the model
 
+The endpoint is configured in the app, not the environment: sign in as a superadmin and open
+**Settings → Model** (`/settings/model`). Set the URL, an optional API key, and the model names,
+then **Test connection**.
+
+The test checks what Setu depends on, not merely that the endpoint replies:
+
+| | |
+|---|---|
+| reachable | can it list models |
+| network | does it resolve inside your network |
+| chat + `json_schema` | structured output, or findings will not parse |
+| `reasoning_effort` | honoured, or runs take hours instead of minutes |
+| embedding width | must match the `vector(768)` the schema stores |
+
+**Nothing runs until that test passes** — uploads return 503 and generation refuses. API keys are
+encrypted at rest and never shown again.
+
+A public endpoint (a hosted provider) works, but only after explicitly acknowledging that
+requirement text, source code and incident history will leave your network. That contradicts the
+BRD's zero-egress requirement, so it is a deliberate, recorded choice rather than a default.
+
+`LLM_BASE_URL` and friends remain as a bootstrap for a fresh install, before anything is saved.
+
+### The old environment-variable route
+
 The app sends client business logic to the model endpoint, so that endpoint must be private.
 **The app refuses to start otherwise** (D31) — this is enforced, not documented:
 
