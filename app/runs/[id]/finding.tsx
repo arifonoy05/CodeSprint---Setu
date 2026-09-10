@@ -1,6 +1,11 @@
 'use client'
 import { useState, useTransition } from 'react'
+import { Check, Pencil, X, MessageSquare, FileCode2 } from 'lucide-react'
 import { decideFinding } from '@/lib/actions/findings.ts'
+import { Button } from '@/components/ui/button.tsx'
+import { Badge } from '@/components/ui/badge.tsx'
+import { Textarea } from '@/components/ui/textarea.tsx'
+import { cn } from '@/lib/utils.ts'
 
 export type FindingView = {
   id: number
@@ -18,9 +23,15 @@ export type FindingView = {
   evidence: { id: string; ref: string; kind: string; text: string }[]
 }
 
-const COLOUR = { high: '#b00', medium: '#b60', low: '#777' }
+const SEV = {
+  high: { cls: 'sev-high', badge: 'destructive', bar: 'var(--color-error)' },
+  medium: { cls: 'sev-medium', badge: 'warning', bar: 'var(--color-warning)' },
+  low: { cls: 'sev-low', badge: 'secondary', bar: 'var(--color-base-300)' },
+} as const
 
-export function Finding({ f, canDismiss, locked }: { f: FindingView; canDismiss: boolean; locked: boolean }) {
+export function Finding({ f, canDismiss, locked }: {
+  f: FindingView; canDismiss: boolean; locked: boolean
+}) {
   const [pending, start] = useTransition()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(f.edited_text ?? f.ai_original)
@@ -33,99 +44,119 @@ export function Finding({ f, canDismiss, locked }: { f: FindingView; canDismiss:
       catch (e) { setError((e as Error).message) }
     })
 
+  const sev = SEV[f.severity]
   const edited = f.edited_text !== null && f.edited_text !== f.ai_original
-  const dim = f.status === 'dismissed'
 
   return (
-    <div style={{
-      borderLeft: `3px solid ${COLOUR[f.severity]}`, padding: '.5rem .9rem',
-      marginBottom: '.9rem', opacity: dim ? 0.55 : 1, background: dim ? '#fafafa' : undefined,
-    }}>
-      <div style={{ display: 'flex', gap: '.6rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <strong style={{ color: COLOUR[f.severity] }}>{f.severity}</strong>
-        <span style={{ color: '#666', fontSize: '.85em' }}>
+    <div
+      className={cn('rounded-[var(--radius)] border border-l-4 border-[var(--color-border)] bg-[var(--color-base-100)] p-4',
+        f.status === 'dismissed' && 'opacity-55')}
+      style={{ borderLeftColor: sev.bar }}
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Badge variant={sev.badge}>{f.severity}</Badge>
+        <span className="text-xs opacity-60">
           {(f.merged_classes?.length ? f.merged_classes : [f.gap_class]).join(' + ').replace(/_/g, ' ')}
         </span>
         {f.status !== 'proposed' && (
-          <span style={{ fontSize: '.8em', background: '#eee', padding: '1px 7px', borderRadius: 9 }}>
-            {f.status}{f.decided_by_name ? ` by ${f.decided_by_name}` : ''}
-          </span>
+          <Badge variant="outline">
+            {f.status}{f.decided_by_name ? ` · ${f.decided_by_name}` : ''}
+          </Badge>
         )}
       </div>
 
       {editing ? (
-        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3}
-                  style={{ width: '100%', margin: '.5rem 0', padding: '.4rem', fontFamily: 'inherit' }} />
+        <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} className="mb-2" />
       ) : (
-        <p style={{ margin: '.4rem 0' }}>{f.edited_text ?? f.ai_original}</p>
+        <p className="mb-2">{f.edited_text ?? f.ai_original}</p>
       )}
 
       {/* D14: what the AI proposed stays visible after a human changes it. */}
       {edited && !editing && (
-        <details style={{ fontSize: '.85em', color: '#666', marginBottom: '.4rem' }}>
-          <summary style={{ cursor: 'pointer' }}>What the AI originally proposed</summary>
-          <p style={{ margin: '.3rem 0 0' }}>{f.ai_original}</p>
+        <details className="mb-2 text-xs opacity-70">
+          <summary className="cursor-pointer">What the AI originally proposed</summary>
+          <p className="mt-1">{f.ai_original}</p>
         </details>
       )}
 
-      <p style={{ margin: '.4rem 0', fontStyle: 'italic' }}>{f.question}</p>
+      <p className="mb-3 border-l-2 border-[var(--color-primary)] pl-3 italic">{f.question}</p>
 
-      <div style={{ fontSize: '.85em', marginBottom: '.5rem' }}>
+      <div className="mb-3 flex flex-wrap gap-1.5">
         {f.evidence.map((e) => (
-          <details key={e.id} style={{ display: 'inline-block', marginRight: '.4rem' }}>
-            <summary style={{ cursor: 'pointer', background: '#eef3fa', color: '#04569c',
-                              padding: '1px 7px', borderRadius: 3, display: 'inline-block' }}>
-              {e.ref}
+          <details key={e.id} className="group">
+            <summary className="badge badge-outline cursor-pointer gap-1 font-mono text-xs">
+              <FileCode2 className="h-3 w-3" aria-hidden />{e.ref}
             </summary>
-            <pre style={{ background: '#f6f6f6', padding: '.6rem', borderRadius: 4, maxWidth: 720,
-                          overflowX: 'auto', whiteSpace: 'pre-wrap', fontSize: '.95em' }}>{e.text}</pre>
+            <pre className="mt-2 max-h-64 max-w-3xl overflow-auto whitespace-pre-wrap rounded-[var(--radius)] bg-[var(--color-base-200)] p-3 text-xs">
+              {e.text}
+            </pre>
           </details>
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="flex flex-wrap items-center gap-2">
         {locked ? (
-          <span style={{ fontSize: '.85em', color: '#777' }}>
-            Approved — decisions are fixed.
-          </span>
+          <span className="text-xs opacity-60">Approved — decisions are fixed.</span>
         ) : editing ? (
           <>
-            <button disabled={pending} onClick={() => { act({ findingId: f.id, status: 'edited', editedText: draft }); setEditing(false) }}>Save</button>
-            <button disabled={pending} onClick={() => { setDraft(f.edited_text ?? f.ai_original); setEditing(false) }}>Cancel</button>
+            <Button size="sm" disabled={pending}
+                    onClick={() => { act({ findingId: f.id, status: 'edited', editedText: draft }); setEditing(false) }}>
+              Save
+            </Button>
+            <Button size="sm" variant="ghost" disabled={pending}
+                    onClick={() => { setDraft(f.edited_text ?? f.ai_original); setEditing(false) }}>
+              Cancel
+            </Button>
           </>
         ) : (
           <>
-            <button disabled={pending} onClick={() => act({ findingId: f.id, status: 'accepted' })}>Accept</button>
-            <button disabled={pending} onClick={() => setEditing(true)}>Edit</button>
-            <button disabled={pending || !canDismiss}
+            <Button size="sm" variant="outline" disabled={pending}
+                    onClick={() => act({ findingId: f.id, status: 'accepted' })}>
+              <Check className="h-3.5 w-3.5" aria-hidden /> Accept
+            </Button>
+            <Button size="sm" variant="ghost" disabled={pending} onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
+            </Button>
+            <Button size="sm" variant="ghost" disabled={pending || !canDismiss}
                     title={canDismiss ? undefined : 'Only a BA can dismiss a finding'}
-                    onClick={() => act({ findingId: f.id, status: 'dismissed' })}>Dismiss</button>
+                    onClick={() => act({ findingId: f.id, status: 'dismissed' })}>
+              <X className="h-3.5 w-3.5" aria-hidden /> Dismiss
+            </Button>
           </>
         )}
 
-        {/* D24: asked separately, because dismissed does not mean invalid. */}
-        <span style={{ marginLeft: 'auto', fontSize: '.85em', color: '#444' }}>
-          Worth asking the client?{' '}
-          <button disabled={pending} aria-pressed={f.ba_verdict === 'valid'}
-                  style={{ fontWeight: f.ba_verdict === 'valid' ? 700 : 400 }}
-                  onClick={() => act({ findingId: f.id, baVerdict: f.ba_verdict === 'valid' ? null : 'valid' })}>Yes</button>{' '}
-          <button disabled={pending} aria-pressed={f.ba_verdict === 'invalid'}
-                  style={{ fontWeight: f.ba_verdict === 'invalid' ? 700 : 400 }}
-                  onClick={() => act({ findingId: f.id, baVerdict: f.ba_verdict === 'invalid' ? null : 'invalid' })}>No</button>
-        </span>
+        {/* D24: asked separately — dismissed does not mean invalid, and precision comes from here. */}
+        <div className="ml-auto flex items-center gap-1.5 text-xs">
+          <span className="opacity-70">Worth asking the client?</span>
+          <div className="join">
+            <button className={cn('btn btn-xs join-item', f.ba_verdict === 'valid' && 'btn-success')}
+                    disabled={pending} aria-pressed={f.ba_verdict === 'valid'}
+                    onClick={() => act({ findingId: f.id, baVerdict: f.ba_verdict === 'valid' ? null : 'valid' })}>
+              Yes
+            </button>
+            <button className={cn('btn btn-xs join-item', f.ba_verdict === 'invalid' && 'btn-error')}
+                    disabled={pending} aria-pressed={f.ba_verdict === 'invalid'}
+                    onClick={() => act({ findingId: f.id, baVerdict: f.ba_verdict === 'invalid' ? null : 'invalid' })}>
+              No
+            </button>
+          </div>
+        </div>
       </div>
 
-      <details style={{ marginTop: '.5rem', fontSize: '.85em' }}>
-        <summary style={{ cursor: 'pointer', color: '#555' }}>
+      <details className="mt-3 text-sm">
+        <summary className="flex cursor-pointer items-center gap-1.5 text-xs opacity-70">
+          <MessageSquare className="h-3.5 w-3.5" aria-hidden />
           What the client said{f.resolution_note ? ' ✓' : ''}
         </summary>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
-                  placeholder="Record the answer, then revise the requirement text above."
-                  style={{ width: '100%', marginTop: '.3rem', padding: '.4rem', fontFamily: 'inherit' }} />
-        <button disabled={pending} onClick={() => act({ findingId: f.id, resolutionNote: note })}>Save note</button>
+        <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="mt-2"
+                  placeholder="Record the answer, then revise the requirement text above." />
+        <Button size="sm" variant="secondary" className="mt-2" disabled={pending}
+                onClick={() => act({ findingId: f.id, resolutionNote: note })}>
+          Save note
+        </Button>
       </details>
 
-      {error && <p role="alert" style={{ color: '#b00', fontSize: '.85em' }}>{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-[var(--color-error)]">{error}</p>}
     </div>
   )
 }

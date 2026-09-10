@@ -1,17 +1,20 @@
 'use client'
 import { useTransition, useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import { startGeneration, approveBacklog } from '@/lib/actions/backlog.ts'
+import { Button } from '@/components/ui/button.tsx'
 
 export function GenerateButton({ runId, label }: { runId: number; label: string }) {
   const [pending, start] = useTransition()
   const [error, setError] = useState<string>()
   return (
     <>
-      <button disabled={pending} style={{ padding: '.45rem .9rem', cursor: 'pointer' }}
-              onClick={() => start(async () => {
-                try { await startGeneration(runId) } catch (e) { setError((e as Error).message) }
-              })}>{pending ? 'Starting…' : label}</button>
-      {error && <p role="alert" style={{ color: '#b00' }}>{error}</p>}
+      <Button disabled={pending} onClick={() => start(async () => {
+        try { await startGeneration(runId) } catch (e) { setError((e as Error).message) }
+      })}>
+        <Sparkles className="h-4 w-4" aria-hidden /> {pending ? 'Starting…' : label}
+      </Button>
+      {error && <p role="alert" className="mt-2 text-sm text-[var(--color-error)]">{error}</p>}
     </>
   )
 }
@@ -20,16 +23,14 @@ export function ApproveBacklog({ runId, pendingCount }: { runId: number; pending
   const [pending, start] = useTransition()
   const [error, setError] = useState<string>()
   return (
-    <>
-      <button disabled={pending || pendingCount > 0}
+    <div className="flex flex-wrap items-center gap-2">
+      <Button disabled={pending || pendingCount > 0}
               title={pendingCount > 0 ? 'Every item needs a decision first' : undefined}
-              style={{ padding: '.45rem .9rem' }}
               onClick={() => start(async () => {
                 try { await approveBacklog(runId) } catch (e) { setError((e as Error).message) }
-              })}>Approve backlog</button>
-      {pendingCount > 0 && <span style={{ marginLeft: '.5rem', color: '#666', fontSize: '.9em' }}>
-        {pendingCount} item{pendingCount === 1 ? '' : 's'} undecided</span>}
-      {error && <p role="alert" style={{ color: '#b00' }}>{error}</p>}
-    </>
+              })}>Approve backlog</Button>
+      {pendingCount > 0 && <span className="text-sm opacity-60">{pendingCount} item{pendingCount === 1 ? '' : 's'} undecided</span>}
+      {error && <p role="alert" className="w-full text-sm text-[var(--color-error)]">{error}</p>}
+    </div>
   )
 }

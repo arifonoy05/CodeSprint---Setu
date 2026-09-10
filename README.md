@@ -63,6 +63,28 @@ open http://localhost:3000/demo
 Sign in as `ba@bracits.com` (password from `npm run seed`), then:
 **findings → approve → backlog → matrix → export**.
 
+## UI
+
+Tailwind v4, **daisyUI 5** (all 35 default themes) and **shadcn/ui** primitives.
+
+The two libraries have competing theme systems, so daisyUI owns theming and shadcn's
+variables are defined in terms of it in `app/globals.css`:
+
+```css
+@theme inline {
+  --color-background: var(--color-base-100);
+  --color-destructive: var(--color-error);
+  ...
+}
+```
+
+A stock shadcn component using `bg-card` or `bg-destructive` therefore compiles straight to
+the daisy palette and repaints with the theme, instead of staying on its own colours and
+looking broken on 34 of the 35. Nothing in a component hardcodes a colour.
+
+The theme picker is in the header; the choice is stored per-browser and applied before
+first paint (`ThemeScript`) so there is no flash on navigation. "system" follows the OS.
+
 ## Development
 
 ```bash

@@ -1,6 +1,8 @@
 'use client'
 import { useState, useTransition } from 'react'
+import { CheckCircle2, ShieldAlert } from 'lucide-react'
 import { approveRun } from '@/lib/actions/run.ts'
+import { Button } from '@/components/ui/button.tsx'
 
 export function Gate({ runId, undecided, approved, approvedBy, approvedAt, canApprove }: {
   runId: number; undecided: number; approved: boolean
@@ -12,51 +14,56 @@ export function Gate({ runId, undecided, approved, approvedBy, approvedAt, canAp
 
   if (approved) {
     return (
-      <section style={{ padding: '.9rem 1rem', background: '#eef7ee', border: '1px solid #cde3cd',
-                        borderRadius: 6, margin: '1rem 0' }}>
-        <strong>Requirements approved</strong>
-        {approvedBy && <> by {approvedBy}</>}
-        {approvedAt && <> on {new Date(approvedAt).toLocaleString()}</>}
-        <p style={{ margin: '.3rem 0 0', color: '#456', fontSize: '.9em' }}>
-          The requirement set is fixed. Findings and requirement text can no longer be changed —
-          the backlog is generated from exactly what was signed off.
-        </p>
-      </section>
+      <div role="status" className="alert alert-success my-4">
+        <CheckCircle2 className="h-5 w-5" aria-hidden />
+        <div>
+          <div className="font-semibold">
+            Requirements approved{approvedBy && ` by ${approvedBy}`}
+            {approvedAt && ` · ${new Date(approvedAt).toLocaleString()}`}
+          </div>
+          <div className="text-sm opacity-80">
+            The requirement set is fixed. Findings and requirement text can no longer be changed —
+            the backlog is generated from exactly what was signed off.
+          </div>
+        </div>
+      </div>
     )
   }
 
   const blocked = undecided > 0 || !canApprove
   return (
-    <section style={{ padding: '.9rem 1rem', background: '#fff8e6', border: '1px solid #eadfc0',
-                      borderRadius: 6, margin: '1rem 0' }}>
-      <strong>Awaiting sign-off</strong>
-      <p style={{ margin: '.3rem 0 .6rem', color: '#654', fontSize: '.9em' }}>
-        Nothing is generated, exported or pushed until the requirements are approved.
-        {undecided > 0 && <> <strong>{undecided}</strong> finding{undecided === 1 ? '' : 's'} still
-          need{undecided === 1 ? 's' : ''} a decision.</>}
-        {!canApprove && <> Only a BA can approve.</>}
-      </p>
+    <div className="alert alert-warning my-4 items-start">
+      <ShieldAlert className="h-5 w-5" aria-hidden />
+      <div className="flex-1">
+        <div className="font-semibold">Awaiting sign-off</div>
+        <div className="text-sm opacity-80">
+          Nothing is generated, exported or pushed until the requirements are approved.
+          {undecided > 0 && <> <strong>{undecided}</strong> finding{undecided === 1 ? '' : 's'} still
+            need{undecided === 1 ? 's' : ''} a decision.</>}
+          {!canApprove && <> Only a BA can approve.</>}
+        </div>
 
-      {confirming ? (
-        <>
-          <p style={{ margin: '.3rem 0', fontWeight: 600 }}>
-            Approve these requirements? This fixes the requirement set and cannot be undone here.
-          </p>
-          <button disabled={pending} onClick={() =>
-            start(async () => {
-              try { await approveRun(runId); setError(undefined) }
-              catch (e) { setError((e as Error).message); setConfirming(false) }
-            })}>Yes, approve</button>{' '}
-          <button disabled={pending} onClick={() => setConfirming(false)}>Cancel</button>
-        </>
-      ) : (
-        <button disabled={blocked} title={blocked ? 'Every finding must be decided first' : undefined}
-                onClick={() => setConfirming(true)}
-                style={{ padding: '.45rem .9rem', cursor: blocked ? 'not-allowed' : 'pointer' }}>
-          Approve requirements
-        </button>
-      )}
-      {error && <p role="alert" style={{ color: '#b00', fontSize: '.85em' }}>{error}</p>}
-    </section>
+        {confirming ? (
+          <div className="mt-3">
+            <p className="mb-2 font-medium">
+              Approve these requirements? This fixes the requirement set and cannot be undone here.
+            </p>
+            <Button size="sm" disabled={pending} onClick={() =>
+              start(async () => {
+                try { await approveRun(runId); setError(undefined) }
+                catch (e) { setError((e as Error).message); setConfirming(false) }
+              })}>Yes, approve</Button>{' '}
+            <Button size="sm" variant="ghost" disabled={pending} onClick={() => setConfirming(false)}>Cancel</Button>
+          </div>
+        ) : (
+          <Button className="mt-3" size="sm" disabled={blocked}
+                  title={blocked ? 'Every finding must be decided first' : undefined}
+                  onClick={() => setConfirming(true)}>
+            Approve requirements
+          </Button>
+        )}
+        {error && <p role="alert" className="mt-2 text-sm">{error}</p>}
+      </div>
+    </div>
   )
 }

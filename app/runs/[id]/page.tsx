@@ -1,13 +1,17 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ArrowLeft, ListChecks, Network } from 'lucide-react'
 import { requireUser } from '@/lib/auth/session.ts'
 import { can } from '@/lib/auth/roles.ts'
 import { sql } from '@/lib/db/client.ts'
+import { gateState } from '@/lib/actions/run.ts'
+import { AppShell } from '@/components/app-shell.tsx'
+import { Badge } from '@/components/ui/badge.tsx'
+import { Card, CardContent } from '@/components/ui/card.tsx'
 import { DemoBanner } from '@/app/demo-banner.tsx'
 import { Finding, type FindingView } from './finding.tsx'
 import { Gate } from './gate.tsx'
 import { RequirementText } from './requirement.tsx'
-import { gateState } from '@/lib/actions/run.ts'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,46 +61,54 @@ export default async function Run({ params }: { params: Promise<{ id: string }> 
     ? stats.suppressed / (stats.produced + stats.suppressed) : 0
 
   return (
-    <main>
+    <AppShell user={user}>
       {inFlight && <meta httpEquiv="refresh" content="4" />}
       {run.is_demo && <DemoBanner />}
-      <p><Link href="/runs">← Runs</Link></p>
-      <h1 style={{ marginBottom: '.2rem' }}>Run #{run.id}</h1>
-      <p style={{ color: '#666', marginTop: 0 }}>{run.filename} · {run.llm_model}</p>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Link href="/runs" className="link flex items-center gap-1 text-sm opacity-70">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Runs
+        </Link>
+        <h1 className="text-2xl font-semibold">Run #{run.id}</h1>
+        <span className="font-mono text-xs opacity-60">{run.filename} · {run.llm_model}</span>
+        <div className="ml-auto flex gap-3 text-sm">
+          <Link href={`/runs/${runId}/backlog`} className="link flex items-center gap-1">
+            <ListChecks className="h-4 w-4" aria-hidden /> Backlog
+          </Link>
+          <Link href={`/runs/${runId}/matrix`} className="link flex items-center gap-1">
+            <Network className="h-4 w-4" aria-hidden /> Matrix
+          </Link>
+        </div>
+      </div>
 
       {run.status === 'failed' && (
-        <p role="alert" style={{ color: '#b00' }}><strong>Failed.</strong> {run.error}</p>
+        <div role="alert" className="alert alert-error mb-4"><span><strong>Failed.</strong> {run.error}</span></div>
       )}
 
       {inFlight ? (
-        <section style={{ padding: '1rem', background: '#f6f6f6', borderRadius: 6 }}>
-          <strong>{run.stage ?? run.status}…</strong>
-          {run.progress_total > 0 && (
-            <div style={{ height: 8, background: '#ddd', borderRadius: 4, margin: '.6rem 0' }}>
-              <div style={{ height: 8, width: `${(run.progress_done / run.progress_total) * 100}%`,
-                            background: '#06c', borderRadius: 4 }} />
-            </div>
-          )}
-          <p style={{ color: '#666', marginBottom: 0 }}>
-            {run.progress_done} of {run.progress_total} checks · closing this tab is safe.
-          </p>
-        </section>
+        <Card className="mb-4">
+          <CardContent className="pt-5">
+            <div className="mb-2 font-medium">{run.stage ?? run.status}…</div>
+            <progress className="progress progress-primary w-full"
+                      value={run.progress_done} max={run.progress_total || 1} />
+            <p className="mt-2 text-sm opacity-60">
+              {run.progress_done} of {run.progress_total} checks · closing this tab is safe.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <dl style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', padding: '.8rem 1rem',
-                     background: '#f6f6f6', borderRadius: 6, margin: 0 }}>
-          <Stat label="Requirements" value={String(reqs.length)} />
-          <Stat label="Findings" value={String(findings.length)} />
-          <Stat label="Undecided" value={String(stats.undecided)} />
+        <div className="stats stats-vertical mb-4 w-full border border-[var(--color-border)] bg-[var(--color-base-100)] sm:stats-horizontal">
+          <Stat title="Requirements" value={String(reqs.length)} />
+          <Stat title="Findings" value={String(findings.length)} desc={`${stats.undecided} undecided`} />
           {/* D19: a non-zero suppression rate is the evidence the citation filter works. */}
-          <Stat label="Suppressed" value={`${stats.suppressed} (${(suppressionRate * 100).toFixed(0)}%)`}
-                hint="cited evidence outside what was retrieved, so never shown" />
+          <Stat title="Suppressed" value={`${stats.suppressed}`}
+                desc={`${(suppressionRate * 100).toFixed(0)}% cited outside the retrieved set`} />
           {/* D24: precision comes from ba_verdict alone, never from dismissals. */}
-          <Stat label="Signal quality"
-                value={judged ? `${((stats.valid / judged) * 100).toFixed(0)}%` : '—'}
-                hint={judged ? `${stats.valid} of ${judged} judged worth asking` : 'not yet judged'} />
+          <Stat title="Signal quality" value={judged ? `${((stats.valid / judged) * 100).toFixed(0)}%` : '—'}
+                desc={judged ? `${stats.valid} of ${judged} worth asking` : 'not yet judged'} />
           {/* D27: elapsed wall clock, not BA-only time. */}
-          <Stat label="Elapsed" value={`${elapsed} min`} hint="wall clock since upload" />
-        </dl>
+          <Stat title="Elapsed" value={`${elapsed} min`} desc="wall clock since upload" />
+        </div>
       )}
 
       {!inFlight && run.status !== 'failed' && (
@@ -106,37 +118,44 @@ export default async function Run({ params }: { params: Promise<{ id: string }> 
               canApprove={can(user.role, 'srs:approve')} />
       )}
 
-      {reqs.map((r) => {
-        const fs = findings.filter((f) => f.requirement_id === r.id)
-        return (
-          <section key={r.id} style={{ borderTop: '1px solid #ddd', paddingTop: '.9rem', marginTop: '1.2rem' }}>
-            <h3 style={{ margin: 0 }}>
-              {r.ref}{' '}
-              <span style={{ fontWeight: 400, color: '#888', fontSize: '.75em' }}>
-                {r.classification.replace('_', ' ')}
-              </span>
-            </h3>
-            <RequirementText id={r.id} aiOriginal={r.ai_original} editedText={r.edited_text}
-                             locked={gate.approved} />
-            {fs.length === 0
-              ? <p style={{ color: '#888', fontSize: '.9em' }}>No gaps found.</p>
-              : fs.map((f) => (
-                  <Finding key={f.id} f={f} canDismiss={can(user.role, 'finding:dismiss')}
-                           locked={gate.approved} />
-                ))}
-          </section>
-        )
-      })}
-    </main>
+      <div className="grid gap-4">
+        {reqs.map((r) => {
+          const fs = findings.filter((f) => f.requirement_id === r.id)
+          return (
+            <Card key={r.id}>
+              <CardContent className="pt-5">
+                <div className="mb-1 flex items-center gap-2">
+                  <h3 className="font-semibold">{r.ref}</h3>
+                  <Badge variant="outline">{r.classification.replace('_', ' ')}</Badge>
+                  {fs.length > 0 && <Badge variant="secondary">{fs.length} finding{fs.length === 1 ? '' : 's'}</Badge>}
+                </div>
+                <RequirementText id={r.id} aiOriginal={r.ai_original} editedText={r.edited_text}
+                                 locked={gate.approved} />
+                {fs.length === 0 ? (
+                  <p className="text-sm opacity-50">No gaps found.</p>
+                ) : (
+                  <div className="grid gap-3">
+                    {fs.map((f) => (
+                      <Finding key={f.id} f={f} canDismiss={can(user.role, 'finding:dismiss')}
+                               locked={gate.approved} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    </AppShell>
   )
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Stat({ title, value, desc }: { title: string; value: string; desc?: string }) {
   return (
-    <div>
-      <dt style={{ fontSize: '.8em', color: '#666' }}>{label}</dt>
-      <dd style={{ margin: 0, fontSize: '1.3em', fontWeight: 600 }}>{value}</dd>
-      {hint && <div style={{ fontSize: '.72em', color: '#888', maxWidth: 190 }}>{hint}</div>}
+    <div className="stat">
+      <div className="stat-title text-xs">{title}</div>
+      <div className="stat-value text-2xl">{value}</div>
+      {desc && <div className="stat-desc max-w-[15rem] whitespace-normal text-xs">{desc}</div>}
     </div>
   )
 }

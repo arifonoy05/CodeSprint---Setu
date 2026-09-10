@@ -7,10 +7,10 @@ for (const who of ['ba@bracits.com', 'dev@bracits.com', 'qa@bracits.com']) {
   const res = await fetch('http://127.0.0.1:3000/runs/9/backlog', { headers: { cookie } })
   const html = await res.text()
   console.log(`${u.role.padEnd(4)} HTTP ${res.status}  ` +
-    `criteria:${/<strong>Given<\/strong>/.test(html) ? 'y' : 'n'} ` +
+    `criteria:${/<b>Given<\/b>/.test(html) ? 'y' : 'n'} ` +
     `tasks:${/Development tasks/.test(html) ? 'y' : 'n'} ` +
     `tests:${/Test scenarios/.test(html) ? 'y' : 'n'} ` +
-    `gap-linked:${/covers a gap raised in review/.test(html) ? 'y' : 'n'} ` +
+    `gap-linked:${/covers a reviewed gap/.test(html) ? 'y' : 'n'} ` +
     `approve:${/Approve backlog/.test(html) ? 'y' : 'n'}`)
 }
 await sql.end()

@@ -1,6 +1,9 @@
 import { sql } from '@/lib/db/client.ts'
 import { llmReachable } from '@/lib/ai/client.ts'
 import { env } from '@/lib/env.ts'
+import { AppShell } from '@/components/app-shell.tsx'
+import { Card, CardContent } from '@/components/ui/card.tsx'
+import { CheckCircle2, XCircle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +18,6 @@ async function dbStatus() {
 
 export default async function Health() {
   const [db, model] = await Promise.all([dbStatus(), llmReachable()])
-
   const rows: [string, boolean, string][] = [
     ['Database', db.ok, db.detail],
     ['Model endpoint', model.ok, model.ok ? env.llmBaseUrl : model.error ?? 'unreachable'],
@@ -25,19 +27,20 @@ export default async function Health() {
   ]
 
   return (
-    <main>
-      <h1>Health</h1>
-      <table cellPadding={8} style={{ borderCollapse: 'collapse' }}>
-        <tbody>
+    <AppShell>
+      <h1 className="mb-4 text-2xl font-semibold">Health</h1>
+      <Card><CardContent className="p-0">
+        <ul className="divide-y divide-[var(--color-border)]">
           {rows.map(([name, ok, detail]) => (
-            <tr key={name} style={{ borderTop: '1px solid #ddd' }}>
-              <td>{ok ? '✅' : '❌'}</td>
-              <td><strong>{name}</strong></td>
-              <td style={{ fontFamily: 'ui-monospace, monospace', fontSize: '.9em' }}>{detail}</td>
-            </tr>
+            <li key={name} className="flex items-center gap-3 p-4">
+              {ok ? <CheckCircle2 className="h-5 w-5 shrink-0 text-[var(--color-success)]" aria-label="ok" />
+                  : <XCircle className="h-5 w-5 shrink-0 text-[var(--color-error)]" aria-label="failing" />}
+              <span className="w-40 font-medium">{name}</span>
+              <span className="font-mono text-sm opacity-70">{detail}</span>
+            </li>
           ))}
-        </tbody>
-      </table>
-    </main>
+        </ul>
+      </CardContent></Card>
+    </AppShell>
   )
 }

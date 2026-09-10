@@ -1,6 +1,8 @@
 'use client'
 import { useState, useTransition } from 'react'
 import { editRequirement } from '@/lib/actions/run.ts'
+import { Button } from '@/components/ui/button.tsx'
+import { Textarea } from '@/components/ui/textarea.tsx'
 
 /** D26: revisions are captured in place — no document versioning. */
 export function RequirementText({ id, aiOriginal, editedText, locked }: {
@@ -13,29 +15,30 @@ export function RequirementText({ id, aiOriginal, editedText, locked }: {
 
   if (editing) {
     return (
-      <div style={{ margin: '.2rem 0 .8rem' }}>
-        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3}
-                  style={{ width: '100%', padding: '.4rem', fontFamily: 'inherit' }} />
-        <button disabled={pending} onClick={() =>
-          start(async () => { await editRequirement(id, draft); setEditing(false) })}>Save</button>{' '}
-        <button disabled={pending} onClick={() => { setDraft(editedText ?? aiOriginal); setEditing(false) }}>Cancel</button>
+      <div className="mb-3">
+        <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} />
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" disabled={pending}
+                  onClick={() => start(async () => { await editRequirement(id, draft); setEditing(false) })}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" disabled={pending}
+                  onClick={() => { setDraft(editedText ?? aiOriginal); setEditing(false) }}>Cancel</Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ margin: '.2rem 0 .8rem' }}>
-      <span>{editedText ?? aiOriginal}</span>{' '}
+    <div className="mb-3">
+      <p className="inline">{editedText ?? aiOriginal}</p>
       {!locked && (
-        <button onClick={() => setEditing(true)}
-                style={{ background: 'none', border: 0, color: '#06c', cursor: 'pointer', fontSize: '.85em' }}>
-          revise
-        </button>
+        <button className="link link-primary ml-2 text-xs" onClick={() => setEditing(true)}>revise</button>
       )}
       {edited && (
-        <details style={{ fontSize: '.82em', color: '#666', marginTop: '.2rem' }}>
-          <summary style={{ cursor: 'pointer' }}>As extracted from the document</summary>
-          <p style={{ margin: '.2rem 0 0' }}>{aiOriginal}</p>
+        <details className="mt-1 text-xs opacity-70">
+          <summary className="cursor-pointer">As extracted from the document</summary>
+          <p className="mt-1">{aiOriginal}</p>
         </details>
       )}
     </div>

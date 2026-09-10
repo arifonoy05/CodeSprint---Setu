@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Every daisyUI theme, all enabled. `light` and `dark` follow the OS by default. */
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark, cupcake, bumblebee, emerald, corporate,
+    synthwave, retro, cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel,
+    fantasy, wireframe, black, luxury, dracula, cmyk, autumn, business, acid, lemonade,
+    night, coffee, winter, dim, nord, sunset, caramellatte, abyss, silk;
+}
+
+/*
+ * shadcn/ui and daisyUI both want to own theming. daisyUI wins: its palette drives the
+ * 35 themes, and shadcn's variables are defined in terms of it. So a shadcn <Button>
+ * repaints correctly when the theme changes, instead of staying on its own palette and
+ * looking broken on 34 of the 35.
+ *
+ * Only the mapping lives here. Nothing hardcodes a colour.
+ */
+@theme inline {
+  --color-background: var(--color-base-100);
+  --color-foreground: var(--color-base-content);
+  --color-card: var(--color-base-100);
+  --color-card-foreground: var(--color-base-content);
+  --color-popover: var(--color-base-100);
+  --color-popover-foreground: var(--color-base-content);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-content);
+  --color-secondary: var(--color-base-200);
+  --color-secondary-foreground: var(--color-base-content);
+  --color-muted: var(--color-base-200);
+  --color-muted-foreground: color-mix(in oklch, var(--color-base-content) 60%, transparent);
+  --color-accent: var(--color-base-200);
+  --color-accent-foreground: var(--color-base-content);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: var(--color-error-content);
+  --color-border: color-mix(in oklch, var(--color-base-content) 18%, transparent);
+  --color-input: color-mix(in oklch, var(--color-base-content) 22%, transparent);
+  --color-ring: var(--color-primary);
+  --radius: var(--radius-box, 0.5rem);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  body { background: var(--color-base-100); color: var(--color-base-content); }
+}
+
+/* Severity is domain vocabulary, so it maps to semantic theme colours, never fixed hex. */
+@utility sev-high { color: var(--color-error); }
+@utility sev-medium { color: var(--color-warning); }
+@utility sev-low { color: color-mix(in oklch, var(--color-base-content) 55%, transparent); }
