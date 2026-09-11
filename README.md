@@ -3,18 +3,95 @@
 An AI reviewer that checks a draft SRS against the system we have already built — then drafts the
 backlog the delivery team works from.
 
+- **`docs/USER_GUIDE.md`** — how to use the app, step by step, per role.
 - **`DESIGN.md`** — 35 decisions and why each won. Read this to understand *why*.
 - **`SPEC.md`** — what to build. Read this to understand *what*.
 - **`.scratch/setu/issues/`** — the work, as 15 tickets in dependency order.
 
-## Running it
+## Quick start
+
+You need **Docker** (Docker Desktop on macOS/Windows, Docker Engine + Compose on Linux) and an
+**OpenAI-compatible model endpoint** — LM Studio, Ollama, vLLM, or a gateway such as
+[OmniRoute](#running-omniroute-on-docker).
 
 ```bash
-docker compose up -d          # app :3000, worker, pgvector :5433
-open http://localhost:3000/health
+git clone git@github.com:arifonoy05/CodeSprint---Setu.git setu
+cd setu
+cp .env.example .env              # optional: compose has working defaults
+docker compose up -d --build      # app :3000, worker, pgvector :5433
+docker compose exec app npm run seed   # five users, one per role; prints the password
+open http://localhost:3000/login
 ```
 
-The model is **not** part of compose — it runs on a separate machine (D34).
+Then:
+
+1. Sign in as `admin@bracits.com` (password printed by `npm run seed`, default `setu-demo-password`;
+   choose your own with `docker compose exec -e SEED_PASSWORD=... app npm run seed`).
+2. Open **Model** in the header (`/settings/model`), enter your endpoint, **Test connection** and
+   save. Nothing runs until that test passes — see [Connecting the model](#connecting-the-model).
+3. Sign in as `ba@bracits.com` and upload an SRS on **Runs**. The [user guide](docs/USER_GUIDE.md)
+   walks through the rest.
+
+For production, set a real `SESSION_SECRET` (32+ characters) in `.env` before `docker compose up`.
+
+### Stopping and resetting
+
+```bash
+docker compose down        # stop; data is kept in the setu-db volume
+docker compose down -v     # stop and delete the database
+docker compose logs -f app worker
+```
+
+## Running OmniRoute on Docker
+
+[OmniRoute](https://github.com/diegosouzapw/OmniRoute) is an OpenAI-compatible gateway that fronts
+many providers behind one `/v1` endpoint. Run it beside Setu:
+
+```bash
+export INITIAL_PASSWORD=$(openssl rand -base64 24)   # dashboard login; defaults to CHANGEME if unset
+echo "$INITIAL_PASSWORD"                             # keep this
+
+docker run -d --name omniroute --restart unless-stopped --stop-timeout 40 \
+  -p 20128:20128 \
+  -v omniroute-data:/app/data \
+  -e INITIAL_PASSWORD \
+  diegosouzapw/omniroute:latest
+```
+
+- The dashboard and the API share port `20128`. The volume at `/app/data` holds its database, keys
+  and settings; `--stop-timeout 40` lets it checkpoint cleanly on stop.
+- Open `http://localhost:20128`, sign in with `INITIAL_PASSWORD`, and follow the Quick Start:
+  **connect a provider** and **create an API key** for Setu.
+- Check it answers: `curl -H "Authorization: Bearer <key>" http://localhost:20128/v1/models`
+
+### Pointing Setu at OmniRoute
+
+In Setu, as `admin@bracits.com`, open **Model** (`/settings/model`):
+
+| field | value |
+|---|---|
+| Endpoint URL | `http://host.docker.internal:20128/v1` — **not** `localhost`, see below |
+| API key | the key you created in OmniRoute |
+| Chat model | **Load from endpoint**, then pick one |
+| Advanced → Embedding endpoint | a local server that serves a **768-dimension** model, e.g. LM Studio at `http://host.docker.internal:1234/v1` with `text-embedding-nomic-embed-text-v1.5` |
+| Advanced → Reasoning effort | `none` |
+
+Then **Test connection** and save. Three things to expect:
+
+1. **`host.docker.internal`, not `localhost`.** Setu calls the model from inside its container,
+   where `localhost` is the container itself. Compose maps `host.docker.internal` to the host on
+   macOS, Windows and Linux. If you type `localhost`, the page offers the corrected URL.
+2. **Setu will flag OmniRoute as a gateway.** It is on a private address, but it forwards prompts
+   to third-party providers, and Setu recognises that from the model list. Runs stay blocked with
+   *"External models are not permitted"* until a superadmin clicks **Allow models outside the
+   network…** on the same page and records a reason. That choice sends requirement text, source
+   code and incident history outside your network — make it deliberately. The reason is shown on
+   `/health`.
+3. **Embeddings must be 768 wide.** The database stores `vector(768)`. Most hosted embedding
+   models are wider (1536+), so keep embeddings on a local model via the separate embedding
+   endpoint. A mismatch is reported by the test and blocks runs.
+
+If OmniRoute runs on another machine, use that machine's address instead of `host.docker.internal`.
 
 ## Connecting the model
 
@@ -49,6 +126,7 @@ container itself, so a model on your machine is not reachable there.
 | where the model runs | what to enter |
 |---|---|
 | the machine hosting Setu (LM Studio, Ollama) | `http://host.docker.internal:1234/v1` |
+| OmniRoute on the machine hosting Setu | `http://host.docker.internal:20128/v1` + API key |
 | another machine on the network | `http://10.0.4.20:1234/v1` |
 | a hosted provider | `https://api.provider.com/v1` + API key |
 
@@ -103,10 +181,13 @@ Tailscale works too; its CGNAT range is already allowed by the egress check.
 
 ## The demo path
 
+Runs inside the container, so no local checkout or Node install is needed. Configure the model
+first — indexing needs the embedding endpoint.
+
 ```bash
-npm run seed           # five users, one per role
-npm run index          # index the fixture system (30 chunks)
-npm run seed:demo      # load the stored run, so the walkthrough never depends on a live model
+docker compose exec app npm run seed        # five users, one per role
+docker compose exec app npm run index       # index the fixture system (30 chunks)
+docker compose exec app npm run seed:demo   # load the stored run, so the walkthrough never depends on a live model
 open http://localhost:3000/demo
 ```
 
@@ -137,11 +218,14 @@ first paint (`ThemeScript`) so there is no flash on navigation. "system" follows
 
 ## Development
 
+Needs Node 24.
+
 ```bash
 npm install
 docker compose up -d db
-npm run dev             # preflight (egress + migrate), then Next
-npm run worker          # pg-boss consumer
+npm run dev             # preflight (egress + migrate), then Next on :3000
+npm run worker          # pg-boss consumer — runs analysis and generation jobs
+npm run seed            # users
 npm test                # node --test, no framework
 
 npm run fixtures:check  # the answer key must cite evidence that exists
@@ -149,6 +233,8 @@ npm run eval:extraction # segmentation + classification vs the answer key
 npm run eval:gaps       # gap recall per check, ~8 min
 npm run snapshot:demo   # capture a finished run as fixtures/demo-run.json
 ```
+
+Without the worker, uploads queue but never progress.
 
 ## Measured quality
 
@@ -174,3 +260,7 @@ See `.env.example`. Two values are load-bearing:
 |---|---|
 | `LLM_BASE_URL` | asserted private at every start (D31). OpenAI-compatible, so LM Studio today and vLLM later is an env change, not a code change (D7). |
 | `LLM_REASONING_EFFORT` | must stay `none`. Measured 215s → 4s per call. With reasoning on, an analysis run takes 3.6 hours instead of 3 minutes (D7). |
+
+Others: `SESSION_SECRET` (32+ chars, signs the login cookie), `SEED_PASSWORD` (password for the
+seeded users), `JIRA_PUSH_ENABLED` / `JIRA_BASE_URL` / `JIRA_PROJECT_KEY` / `JIRA_TOKEN` (Jira push;
+off by default).
