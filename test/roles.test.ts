@@ -45,3 +45,11 @@ test('superadmin can do every gated action', () => {
 test('every role has a landing page', () => {
   for (const r of ROLES) assert.ok(LANDING[r], r)
 })
+
+test('network policy is superadmin-only, like the endpoint itself', () => {
+  // Allowing external models contradicts the BRD's central requirement, so it sits behind
+  // the same gate as the endpoint that would use them.
+  assert.equal(can('superadmin', 'model:configure'), true)
+  for (const r of ['ba', 'dev', 'qa', 'pm'] as const)
+    assert.equal(can(r, 'model:configure'), false, r)
+})

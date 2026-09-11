@@ -63,7 +63,7 @@ export function ModelForm({ initial, hasStoredKey, hasStoredEmbedKey }: {
   }
 
   const forwards = Boolean(report?.gateway?.likely)
-  const needsAck = report && (!report.isPrivate || forwards) && !form.egressAcknowledged
+  const needsAck = false // superseded by the organisation-level network policy
 
   return (
     <div className="grid gap-4">
@@ -214,15 +214,11 @@ export function ModelForm({ initial, hasStoredKey, hasStoredEmbedKey }: {
                 : 'This endpoint is outside your network'}
             </div>
             <p className="text-sm opacity-80">{report.resolvedNote}</p>
-            <label className="mt-2 flex items-start gap-2 text-sm">
-              <input type="checkbox" className="checkbox checkbox-sm mt-0.5"
-                     checked={form.egressAcknowledged}
-                     onChange={(e) => setForm((f) => ({ ...f, egressAcknowledged: e.target.checked }))} />
-              <span>
-                I accept that requirement text, source code and incident history will be sent to this
-                endpoint and will leave our network.
-              </span>
-            </label>
+            <p className="mt-2 text-sm">
+              Requirement text, source code and incident history will be sent here and will leave your
+              network. This endpoint can only be used while <strong>Network policy</strong> above
+              permits external models.
+            </p>
           </div>
         </div>
       )}

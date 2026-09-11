@@ -2,6 +2,7 @@ import { requireUser } from '@/lib/auth/session.ts'
 import { sql } from '@/lib/db/client.ts'
 import { llmReachable } from '@/lib/ai/client.ts'
 import { getModelConfig, modelBlocker } from '@/lib/model/config.ts'
+import { getPolicy } from '@/lib/model/policy.ts'
 import { AppShell } from '@/components/app-shell.tsx'
 import { Card, CardContent } from '@/components/ui/card.tsx'
 import { CheckCircle2, XCircle } from 'lucide-react'
@@ -19,8 +20,8 @@ async function dbStatus() {
 
 export default async function Health() {
   const user = await requireUser()
-  const [db, model, cfg, blocker] = await Promise.all([
-    dbStatus(), llmReachable(), getModelConfig(), modelBlocker(),
+  const [db, model, cfg, blocker, policy] = await Promise.all([
+    dbStatus(), llmReachable(), getModelConfig(), modelBlocker(), getPolicy(),
   ])
   const rows: [string, boolean, string][] = [
     ['Database', db.ok, db.detail],
@@ -28,8 +29,14 @@ export default async function Health() {
     ['Chat model', !!model.models?.includes(cfg.chatModel), cfg.chatModel],
     ['Embedding model', !!model.models?.includes(cfg.embedModel),
       `${cfg.embedModel}${cfg.embedDims ? ` (${cfg.embedDims}d)` : ''}`],
-    ['Network', cfg.isPrivate, cfg.isPrivate ? 'endpoint is inside your network'
-      : cfg.egressAcknowledged ? 'PUBLIC endpoint, acknowledged' : 'PUBLIC endpoint, not acknowledged'],
+    ['Network policy', !policy.allowExternal,
+      policy.allowExternal
+        ? `EXTERNAL MODELS PERMITTED${policy.setByName ? ` — allowed by ${policy.setByName}` : ''}${policy.reason ? `: ${policy.reason}` : ''}`
+        : 'internal models only'],
+    ['Endpoint', cfg.isPrivate && !(cfg.lastReport as any)?.gateway?.likely,
+      !cfg.isPrivate ? 'outside your network'
+        : (cfg.lastReport as any)?.gateway?.likely ? 'private address, but forwards to third parties'
+        : 'inside your network'],
     ['Ready to run', !blocker, blocker ? `${blocker.reason} — ${blocker.detail}` : 'verified'],
   ]
 

@@ -1,6 +1,6 @@
 # Setu — Design Decisions
 
-Shared understanding from the grilling session. **36 decisions.**
+Shared understanding from the grilling session. **37 decisions.**
 Amended after review: D3×D8 had a blocking contradiction · D11's fixture format was wrong ·
 D6/D7 changed with the runtime · D3/D6/D9/D12/D13/D15/D16 amended by D23–D33 · D31 amended by D34.
 Derived from the BRD: *Setu — From SRS to Sprint-Ready Backlog* (Anindo Dey, PIN 1808, BRAC IT CodeSprint 2026).
@@ -566,6 +566,9 @@ embedding model is a migration, not a preference.
 **API keys are encrypted at rest** (AES-256-GCM, key derived from `SESSION_SECRET`) and never sent
 back to the browser — the form shows a masked hint and an empty field means "keep the stored key".
 
+**Whether external models may be used at all is an organisation-level policy (D37), not a
+per-endpoint checkbox.**
+
 **This supersedes part of D31, and weakens the BRD's central promise.** The BRD says all inference
 runs on internally hosted models and client business logic never leaves the network. Pointing Setu
 at a hosted provider breaks that. It is now possible, but never silently: the test resolves the
@@ -574,6 +577,24 @@ requirement text, source code and incident history will leave the network. The c
 in `audit_log` and shown on the health page.
 `ponytail:` one active configuration. Per-environment or per-run endpoints are a table with more
 rows, not a redesign.
+
+### 37. Using models outside the network is a policy, not a checkbox
+The first version put the decision inside the connection-test result: run a test, see a warning, tick
+a box. That made a governance decision look like a form field, hid it until someone happened to test
+a public endpoint, and attached it to one configuration rather than to the organisation.
+
+It is now a **network policy** in Settings, owned by superadmin, default **closed**:
+
+- Turning it on **requires a written reason**, recorded against the person who set it
+- The reason is shown on the **health page**, where a reviewer would look
+- It is **revocable** in one click, and applies to every endpoint and every run
+- A private-address gateway that resells third-party models counts as external (D36)
+
+With the policy closed, an external endpoint can be configured and tested but not used — the blocker
+says a superadmin must permit external models first. `audit_log` records both directions.
+
+This keeps the BRD's requirement as the default while making the exception deliberate, attributed
+and visible, rather than a tick-box nobody would find in a review.
 
 ---
 

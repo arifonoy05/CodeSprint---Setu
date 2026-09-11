@@ -1,6 +1,7 @@
 import { sql } from '../db/client.ts'
 import { env } from '../env.ts'
 import { decryptSecret } from './secret.ts'
+import { getPolicy } from './policy.ts'
 
 export type ModelConfig = {
   id: number | null
@@ -64,13 +65,17 @@ export async function modelBlocker(): Promise<Blocker | null> {
     return { reason: 'Model connection not verified',
              detail: c.lastError ?? 'Test the connection to confirm the endpoint answers.' }
   }
+  // An endpoint is "external" if it sits outside the network, or forwards there.
   const forwards = (c.lastReport as any)?.gateway?.likely === true
-  if ((!c.isPrivate || forwards) && !c.egressAcknowledged) {
-    return {
-      reason: c.isPrivate ? 'Forwarding gateway not acknowledged' : 'Public endpoint not acknowledged',
-      detail: c.isPrivate
-        ? 'This endpoint is on your network but appears to resell third-party models, so prompts leave it. Confirm that client business logic may leave the network.'
-        : 'This endpoint is outside your network. Confirm that client business logic may leave it.',
+  if (!c.isPrivate || forwards) {
+    const policy = await getPolicy()
+    if (!policy.allowExternal) {
+      return {
+        reason: 'External models are not permitted',
+        detail: c.isPrivate
+          ? 'This endpoint is on your network but resells third-party models, so prompts leave it. A superadmin must allow external models in Settings before it can be used.'
+          : 'This endpoint is outside your network. A superadmin must allow external models in Settings before it can be used.',
+      }
     }
   }
   if (c.embedDims && c.embedDims !== env.embedDims) {

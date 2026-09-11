@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/auth/session.ts'
 import { can } from '@/lib/auth/roles.ts'
 import { getModelConfig, modelBlocker } from '@/lib/model/config.ts'
+import { getPolicy } from '@/lib/model/policy.ts'
+import { NetworkPolicy } from './policy.tsx'
 import { AppShell } from '@/components/app-shell.tsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
@@ -15,6 +17,7 @@ export default async function ModelSettings() {
 
   const cfg = await getModelConfig()
   const blocker = await modelBlocker()
+  const policy = await getPolicy()
 
   return (
     <AppShell user={user}>
@@ -31,6 +34,20 @@ export default async function ModelSettings() {
           <span><strong>{blocker.reason}.</strong> {blocker.detail}</span>
         </div>
       )}
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Network policy</CardTitle>
+          <CardDescription>
+            Whether Setu may use models outside your network. Applies to every endpoint and every run.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <NetworkPolicy allowExternal={policy.allowExternal} reason={policy.reason}
+                         setByName={policy.setByName}
+                         setAt={policy.setAt ? String(policy.setAt) : null} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
