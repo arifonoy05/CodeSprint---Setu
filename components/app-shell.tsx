@@ -4,6 +4,7 @@ import { FileSearch } from 'lucide-react'
 import { ThemeSwitcher } from './theme-switcher.tsx'
 import { TopNav, MobileNav, RunNav } from './nav.tsx'
 import { pendingFor } from '@/lib/pending.ts'
+import { sql } from '@/lib/db/client.ts'
 import { Badge } from './ui/badge.tsx'
 import { logout } from '@/lib/auth/actions.ts'
 import type { SessionUser } from '@/lib/auth/session.ts'
@@ -14,7 +15,12 @@ export async function AppShell({ user, runId, children }: {
   runId?: number
   children: React.ReactNode
 }) {
-  const pending = user && runId !== undefined ? await pendingFor(runId) : undefined
+  const inRun = user && runId !== undefined
+  const pending = inRun ? await pendingFor(runId) : undefined
+  // The backlog views exist before sign-off but produce nothing, so the nav shows them gated.
+  const approved = inRun
+    ? (await sql<{ ok: boolean }[]>`SELECT approved_at IS NOT NULL AS ok FROM runs WHERE id = ${runId}`)[0]?.ok
+    : undefined
 
   return (
     <div className="min-h-screen bg-[var(--color-base-200)]">
@@ -46,7 +52,7 @@ export async function AppShell({ user, runId, children }: {
         {/* useSearchParams needs a boundary during static prerender. */}
         {user && runId !== undefined && (
           <Suspense fallback={<div className="mb-4 h-10" />}>
-            <RunNav runId={runId} role={user.role} pending={pending} />
+            <RunNav runId={runId} role={user.role} pending={pending} approved={approved} />
           </Suspense>
         )}
         {children}
