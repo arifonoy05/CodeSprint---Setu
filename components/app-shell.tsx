@@ -3,16 +3,19 @@ import { Suspense } from 'react'
 import { FileSearch } from 'lucide-react'
 import { ThemeSwitcher } from './theme-switcher.tsx'
 import { TopNav, MobileNav, RunNav } from './nav.tsx'
+import { pendingFor } from '@/lib/pending.ts'
 import { Badge } from './ui/badge.tsx'
 import { logout } from '@/lib/auth/actions.ts'
 import type { SessionUser } from '@/lib/auth/session.ts'
 
-export function AppShell({ user, runId, children }: {
+export async function AppShell({ user, runId, children }: {
   user?: SessionUser | null
   /** When inside a run, the shell also renders the per-run view tabs. */
   runId?: number
   children: React.ReactNode
 }) {
+  const pending = user && runId !== undefined ? await pendingFor(runId) : undefined
+
   return (
     <div className="min-h-screen bg-[var(--color-base-200)]">
       <header className="sticky top-0 z-30 border-b border-[var(--color-border)] bg-[var(--color-base-100)]">
@@ -43,7 +46,7 @@ export function AppShell({ user, runId, children }: {
         {/* useSearchParams needs a boundary during static prerender. */}
         {user && runId !== undefined && (
           <Suspense fallback={<div className="mb-4 h-10" />}>
-            <RunNav runId={runId} role={user.role} />
+            <RunNav runId={runId} role={user.role} pending={pending} />
           </Suspense>
         )}
         {children}

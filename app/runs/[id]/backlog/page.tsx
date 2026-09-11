@@ -7,6 +7,8 @@ import { AppShell } from '@/components/app-shell.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { Card, CardContent } from '@/components/ui/card.tsx'
 import { DemoBanner } from '@/app/demo-banner.tsx'
+import { PendingFilter } from '@/components/pending-filter.tsx'
+import { pendingFor } from '@/lib/pending.ts'
 import { Artifact } from './artifact.tsx'
 import { GenerateButton, ApproveBacklog } from './actions.tsx'
 import { generationStalled } from '@/lib/model/stalled.ts'
@@ -14,7 +16,7 @@ import { generationStalled } from '@/lib/model/stalled.ts'
 export const dynamic = 'force-dynamic'
 
 export default async function Backlog(
-  { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ view?: string }> },
+  { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ view?: string; pending?: string }> },
 ) {
   const user = await requireUser()
   const runId = Number((await params).id)
@@ -46,7 +48,9 @@ export default async function Backlog(
    * D10: a role only picks the DEFAULT view. Any signed-in user may look at any of them,
    * so an explicit ?view= wins over the role — a QA can read the developer tasks.
    */
-  const requested = (await searchParams).view
+  const sp = await searchParams
+  const pendingOnly = sp.pending === '1'
+  const requested = sp.view
   const view = requested === 'tasks' || requested === 'tests' || requested === 'all'
     ? requested
     : user.role === 'dev' ? 'tasks' : user.role === 'qa' ? 'tests' : 'all'
@@ -54,6 +58,15 @@ export default async function Backlog(
     ? Math.round((Date.parse(run.backlog_approved_at) - Date.parse(run.started_at)) / 60000)
     : null
   const hasStories = rows.some((r) => r.story_id)
+  const pending = await pendingFor(runId)
+  // Count and filter by whichever artifact this view is actually about.
+  const scope = view === 'tasks'
+    ? { pending: pending.tasks, total: tasks.length, noun: 'tasks' }
+    : view === 'tests'
+      ? { pending: pending.tests, total: tests.length, noun: 'test scenarios' }
+      : { pending: pending.backlog, total: rows.filter((r) => r.story_id).length + tasks.length + tests.length,
+          noun: 'backlog items' }
+  const undecided = (x: { status: string }) => x.status === 'proposed'
 
   return (
     <AppShell user={user} runId={runId}>
@@ -111,14 +124,31 @@ export default async function Backlog(
         <div className="mb-4"><ApproveBacklog runId={runId} pendingCount={pend!.n} /></div>
       ) : null}
 
+      {hasStories && (
+        <div className="mb-3">
+          <PendingFilter pending={scope.pending} total={scope.total} noun={scope.noun} />
+        </div>
+      )}
+
       <div className="grid gap-4">
         {rows.filter((r) => r.story_id).map((r) => {
-          const st = tasks.filter((t) => t.story_id === r.story_id)
-          const sc = tests.filter((t) => t.story_id === r.story_id)
+          const allTasks = tasks.filter((t) => t.story_id === r.story_id)
+          const allTests = tests.filter((t) => t.story_id === r.story_id)
+          const st = pendingOnly ? allTasks.filter(undecided) : allTasks
+          const sc = pendingOnly ? allTests.filter(undecided) : allTests
+          const storyPending = (view !== 'tests' ? allTasks.filter(undecided).length : 0)
+            + (view !== 'tasks' ? allTests.filter(undecided).length : 0)
+            + (view === 'all' && r.s_status === 'proposed' ? 1 : 0)
+          if (pendingOnly && storyPending === 0) return null
           return (
             <Card key={r.story_id}>
               <CardContent className="pt-5">
-                <div className="mb-1 text-xs opacity-60">{r.ref} — {r.req_text}</div>
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs opacity-60">{r.ref} — {r.req_text}</span>
+                  {storyPending > 0
+                    ? <Badge variant="warning" title="still need a decision">{storyPending} pending</Badge>
+                    : <Badge variant="success">decided</Badge>}
+                </div>
                 <Artifact kind="stories" id={r.story_id} text={r.s_edit ?? r.s_orig}
                           aiOriginal={r.s_orig} status={r.s_status} className="text-lg font-semibold" />
 
@@ -134,7 +164,12 @@ export default async function Backlog(
 
                 {view !== 'tests' && st.length > 0 && (
                   <section className="mt-4">
-                    <h4 className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">Development tasks</h4>
+                    <h4 className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide opacity-60">
+                      Development tasks
+                      {allTasks.filter(undecided).length > 0 && (
+                        <Badge variant="warning">{allTasks.filter(undecided).length} pending</Badge>
+                      )}
+                    </h4>
                     <div className="divide-y divide-[var(--color-border)]">
                       {st.map((t) => (
                         <Artifact key={t.id} kind="tasks" id={t.id} text={t.edited_text ?? t.ai_original}
@@ -151,7 +186,12 @@ export default async function Backlog(
 
                 {view !== 'tasks' && sc.length > 0 && (
                   <section className="mt-4">
-                    <h4 className="mb-1 text-xs font-medium uppercase tracking-wide opacity-60">Test scenarios</h4>
+                    <h4 className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide opacity-60">
+                      Test scenarios
+                      {allTests.filter(undecided).length > 0 && (
+                        <Badge variant="warning">{allTests.filter(undecided).length} pending</Badge>
+                      )}
+                    </h4>
                     <div className="divide-y divide-[var(--color-border)]">
                       {sc.map((t) => (
                         <Artifact key={t.id} kind="test_scenarios" id={t.id} text={t.edited_text ?? t.ai_original}

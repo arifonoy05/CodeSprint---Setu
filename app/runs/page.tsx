@@ -21,7 +21,13 @@ export default async function Runs() {
   const runs = await sql<any[]>`
     SELECT r.id, r.status, r.stage, r.progress_done, r.progress_total, r.started_at, r.is_demo,
            d.filename,
-           (SELECT count(*) FROM findings f WHERE f.run_id = r.id AND f.merged_into_id IS NULL) AS findings
+           (SELECT count(*) FROM findings f WHERE f.run_id = r.id AND f.merged_into_id IS NULL) AS findings,
+           (SELECT count(*)::int FROM findings f
+              WHERE f.run_id = r.id AND f.merged_into_id IS NULL AND f.status = 'proposed')
+           + (SELECT count(*)::int FROM stories s WHERE s.run_id = r.id AND s.status = 'proposed')
+           + (SELECT count(*)::int FROM tasks t WHERE t.run_id = r.id AND t.status = 'proposed')
+           + (SELECT count(*)::int FROM test_scenarios ts WHERE ts.run_id = r.id AND ts.status = 'proposed')
+           AS pending
     FROM runs r JOIN documents d ON d.id = r.document_id
     ORDER BY r.id DESC LIMIT 25`
 
@@ -43,6 +49,7 @@ export default async function Runs() {
                 <TableHead>Document</TableHead>
                 <TableHead className="w-64">Status</TableHead>
                 <TableHead className="w-24 text-right">Findings</TableHead>
+                <TableHead className="w-32 text-right">Awaiting you</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -65,10 +72,16 @@ export default async function Runs() {
                   <TableCell className="text-right tabular-nums">
                     {['review', 'approved', 'generating', 'ready'].includes(r.status) ? r.findings : '—'}
                   </TableCell>
+                  <TableCell className="text-right">
+                    {!['review', 'approved', 'generating', 'ready'].includes(r.status) ? '—'
+                      : r.pending > 0
+                        ? <Badge variant="warning">{r.pending} pending</Badge>
+                        : <Badge variant="success">all decided</Badge>}
+                  </TableCell>
                 </TableRow>
               ))}
               {runs.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="py-8 text-center opacity-60">
+                <TableRow><TableCell colSpan={5} className="py-8 text-center opacity-60">
                   No runs yet. Upload a draft SRS to begin.
                 </TableCell></TableRow>
               )}

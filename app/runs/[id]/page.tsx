@@ -8,13 +8,16 @@ import { AppShell } from '@/components/app-shell.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { Card, CardContent } from '@/components/ui/card.tsx'
 import { DemoBanner } from '@/app/demo-banner.tsx'
+import { PendingFilter } from '@/components/pending-filter.tsx'
 import { Finding, type FindingView } from './finding.tsx'
 import { Gate } from './gate.tsx'
 import { RequirementText } from './requirement.tsx'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Run({ params }: { params: Promise<{ id: string }> }) {
+export default async function Run(
+  { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ pending?: string }> },
+) {
   const user = await requireUser()
   const runId = Number((await params).id)
 
@@ -51,6 +54,7 @@ export default async function Run({ params }: { params: Promise<{ id: string }> 
       (SELECT count(*)::int FROM findings f WHERE f.run_id = ${runId} AND f.ba_verdict = 'valid')   AS valid,
       (SELECT count(*)::int FROM findings f WHERE f.run_id = ${runId} AND f.ba_verdict = 'invalid') AS invalid`
 
+  const pendingOnly = (await searchParams).pending === '1'
   const gate = await gateState(runId)
   const [approver] = await sql<any[]>`SELECT name FROM users WHERE id = ${run.approved_by}`
   const judged = stats.valid + stats.invalid
@@ -106,16 +110,31 @@ export default async function Run({ params }: { params: Promise<{ id: string }> 
               canApprove={can(user.role, 'srs:approve')} />
       )}
 
+      {findings.length > 0 && (
+        <div className="mb-3">
+          <PendingFilter pending={stats.undecided} total={findings.length} noun="findings" />
+        </div>
+      )}
+
       <div className="grid gap-4">
         {reqs.map((r) => {
-          const fs = findings.filter((f) => f.requirement_id === r.id)
+          const all = findings.filter((f) => f.requirement_id === r.id)
+          const fs = pendingOnly ? all.filter((f) => f.status === 'proposed') : all
+          if (pendingOnly && fs.length === 0) return null
+          const undecided = all.filter((f) => f.status === 'proposed').length
           return (
             <Card key={r.id}>
               <CardContent className="pt-5">
                 <div className="mb-1 flex items-center gap-2">
                   <h3 className="font-semibold">{r.ref}</h3>
                   <Badge variant="outline">{r.classification.replace('_', ' ')}</Badge>
-                  {fs.length > 0 && <Badge variant="secondary">{fs.length} finding{fs.length === 1 ? '' : 's'}</Badge>}
+                  {all.length > 0 && (
+                    <Badge variant="secondary">{all.length} finding{all.length === 1 ? '' : 's'}</Badge>
+                  )}
+                  {undecided > 0 && (
+                    <Badge variant="warning" title="still need a decision">{undecided} pending</Badge>
+                  )}
+                  {all.length > 0 && undecided === 0 && <Badge variant="success">decided</Badge>}
                 </div>
                 <RequirementText id={r.id} aiOriginal={r.ai_original} editedText={r.edited_text}
                                  locked={gate.approved} />
