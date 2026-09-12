@@ -61,10 +61,11 @@ Until a model endpoint is configured and verified, the upload card on **Runs** i
 notice such as *No model configured* or *Model connection not verified*.
 
 1. Click **Model** in the header.
-2. Enter the **Endpoint URL** — any OpenAI-compatible `/v1` URL. Setu calls it from its container,
-   so for a model on the same machine use `http://host.docker.internal:<port>/v1`, not
-   `localhost`. If you type `localhost`, a warning offers the corrected URL — click
-   **Use this instead**.
+2. Enter the **Endpoint URL** — any OpenAI-compatible `/v1` URL. Setu ships with the OmniRoute
+   gateway, so this is usually **`http://omniroute:20128/v1`**. Setu calls the endpoint from its
+   container, so never use `localhost`: for a model running on the host machine use
+   `http://host.docker.internal:<port>/v1`. If you type `localhost`, a warning offers the corrected
+   URL — click **Use this instead**.
 3. Add the **API key** if the endpoint needs one. It is encrypted and never shown again.
 4. Click **Load from endpoint** and choose the **Chat model**.
 5. Under **Advanced**, check the **Embedding model** (must produce 768-dimension vectors) and keep

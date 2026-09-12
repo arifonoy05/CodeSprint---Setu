@@ -10,15 +10,18 @@ backlog the delivery team works from.
 
 ## Quick start
 
-You need **Docker** (Docker Desktop on macOS/Windows, Docker Engine + Compose on Linux) and an
-**OpenAI-compatible model endpoint** — LM Studio, Ollama, vLLM, or a gateway such as
-[OmniRoute](#running-omniroute-on-docker).
+You need **Docker** (Docker Desktop on macOS/Windows, Docker Engine + Compose on Linux). The model
+comes from [OmniRoute](#omniroute-the-default-model-endpoint), which compose runs for you — the
+deploy server has no GPU, so there is no local model runtime to install.
 
 ```bash
 git clone git@github.com:arifonoy05/CodeSprint---Setu.git setu
 cd setu
-cp .env.example .env              # optional: compose has working defaults
-docker compose up -d --build      # app :3000, worker, pgvector :5433
+cp .env.example .env
+# INITIAL_PASSWORD is required — it is the OmniRoute dashboard login, which holds provider keys
+echo "INITIAL_PASSWORD=$(openssl rand -base64 24)" >> .env
+
+docker compose up -d --build           # app :3000, worker, pgvector :5433, omniroute :20128
 docker compose exec app npm run seed   # five users, one per role; prints the password
 open http://localhost:3000/login
 ```
@@ -27,8 +30,10 @@ Then:
 
 1. Sign in as `admin@bracits.com` (password printed by `npm run seed`, default `setu-demo-password`;
    choose your own with `docker compose exec -e SEED_PASSWORD=... app npm run seed`).
-2. Open **Model** in the header (`/settings/model`), enter your endpoint, **Test connection** and
-   save. Nothing runs until that test passes — see [Connecting the model](#connecting-the-model).
+2. Set up the model: add a provider and mint a key in the OmniRoute dashboard
+   (`http://localhost:20128`), then open **Model** in the header (`/settings/model`) and save that
+   endpoint. Nothing runs until its **Test connection** passes — see
+   [OmniRoute](#omniroute-the-default-model-endpoint).
 3. Sign in as `ba@bracits.com` and upload an SRS on **Runs**. The [user guide](docs/USER_GUIDE.md)
    walks through the rest.
 
@@ -37,61 +42,87 @@ For production, set a real `SESSION_SECRET` (32+ characters) in `.env` before `d
 ### Stopping and resetting
 
 ```bash
-docker compose down        # stop; data is kept in the setu-db volume
-docker compose down -v     # stop and delete the database
+docker compose down        # stop; data is kept in the setu-db and omniroute-data volumes
+docker compose down -v     # stop and delete both — including OmniRoute's providers and keys
 docker compose logs -f app worker
 ```
 
-## Running OmniRoute on Docker
+## OmniRoute: the default model endpoint
 
 [OmniRoute](https://github.com/diegosouzapw/OmniRoute) is an OpenAI-compatible gateway that fronts
-many providers behind one `/v1` endpoint. Run it beside Setu:
+many providers behind one `/v1` endpoint. **D34: the deploy server has no GPU**, so the models come
+from providers through the gateway instead of a local runtime, and compose runs it as the
+`omniroute` service:
 
-```bash
-export INITIAL_PASSWORD=$(openssl rand -base64 24)   # dashboard login; defaults to CHANGEME if unset
-echo "$INITIAL_PASSWORD"                             # keep this
-
-docker run -d --name omniroute --restart unless-stopped --stop-timeout 40 \
-  -p 20128:20128 \
-  -v omniroute-data:/app/data \
-  -e INITIAL_PASSWORD \
-  diegosouzapw/omniroute:latest
+```yaml
+omniroute:
+  image: diegosouzapw/omniroute:latest
+  environment:
+    INITIAL_PASSWORD: ${INITIAL_PASSWORD:?set INITIAL_PASSWORD in .env}
+  ports: ["20128:20128"]
+  volumes: ["omniroute-data:/app/data"]
+  stop_grace_period: 40s
 ```
 
-- The dashboard and the API share port `20128`. The volume at `/app/data` holds its database, keys
-  and settings; `--stop-timeout 40` lets it checkpoint cleanly on stop.
-- Open `http://localhost:20128`, sign in with `INITIAL_PASSWORD`, and follow the Quick Start:
-  **connect a provider** and **create an API key** for Setu.
-- Check it answers: `curl -H "Authorization: Bearer <key>" http://localhost:20128/v1/models`
+- The dashboard and the API share port `20128`; it is published so you can reach the dashboard in a
+  browser.
+- Its database, provider keys and settings live in the **`omniroute-data`** volume at `/app/data`,
+  so they survive `docker compose down` and `up`. `stop_grace_period: 40s` lets its SQLite
+  checkpoint instead of being killed mid-write.
+- `INITIAL_PASSWORD` has no default — compose refuses to start without one. This container holds
+  your provider API keys, and OmniRoute's own fallback is the literal string `CHANGEME`.
+- `app` and `worker` default to `LLM_BASE_URL=http://omniroute:20128/v1` and `depends_on` it, so
+  the name `omniroute` resolves before anything tries the endpoint. Compose only resolves a service
+  name while that service's container is running.
 
-### Pointing Setu at OmniRoute
+### Setting it up (first run)
 
-In Setu, as `admin@bracits.com`, open **Model** (`/settings/model`):
+1. Open `http://localhost:20128`, sign in with your `INITIAL_PASSWORD`, then use the Quick Start to
+   **connect a provider** and **create an API key**.
+2. Check the gateway answers:
+   `curl -H "Authorization: Bearer <key>" http://localhost:20128/v1/models`
+3. In Setu, as `admin@bracits.com`, open **Model** (`/settings/model`):
 
 | field | value |
 |---|---|
-| Endpoint URL | `http://host.docker.internal:20128/v1` — **not** `localhost`, see below |
-| API key | the key you created in OmniRoute |
+| Endpoint URL | `http://omniroute:20128/v1` — the service name, resolved inside compose |
+| API key | the key you minted in OmniRoute |
 | Chat model | **Load from endpoint**, then pick one |
-| Advanced → Embedding endpoint | a local server that serves a **768-dimension** model, e.g. LM Studio at `http://host.docker.internal:1234/v1` with `text-embedding-nomic-embed-text-v1.5` |
+| Advanced → Embedding endpoint | a **768-dimension** embedder, see below |
 | Advanced → Reasoning effort | `none` |
 
-Then **Test connection** and save. Three things to expect:
+Then **Test connection** and **Save and verify**.
 
-1. **`host.docker.internal`, not `localhost`.** Setu calls the model from inside its container,
-   where `localhost` is the container itself. Compose maps `host.docker.internal` to the host on
-   macOS, Windows and Linux. If you type `localhost`, the page offers the corrected URL.
-2. **Setu will flag OmniRoute as a gateway.** It is on a private address, but it forwards prompts
-   to third-party providers, and Setu recognises that from the model list. Runs stay blocked with
-   *"External models are not permitted"* until a superadmin clicks **Allow models outside the
-   network…** on the same page and records a reason. That choice sends requirement text, source
-   code and incident history outside your network — make it deliberately. The reason is shown on
-   `/health`.
-3. **Embeddings must be 768 wide.** The database stores `vector(768)`. Most hosted embedding
-   models are wider (1536+), so keep embeddings on a local model via the separate embedding
-   endpoint. A mismatch is reported by the test and blocks runs.
+### Two things compose cannot do for you
 
-If OmniRoute runs on another machine, use that machine's address instead of `host.docker.internal`.
+Wiring the gateway in is not the same as switching it on. Both of these are deliberate design
+(D31), not gaps to patch:
+
+1. **A superadmin must save and verify a config.** Until then the environment is only a bootstrap,
+   and every run is blocked with *No model configured*.
+2. **A superadmin must allow external models.** OmniRoute sits on a private address, but it
+   forwards prompts to third-party providers, and Setu infers that from the size and vendor names
+   of the model list. Runs stay blocked with *External models are not permitted* until someone
+   clicks **Allow models outside the network…** and records a reason, which is then shown on
+   `/health`. That choice sends requirement text, source code and incident history outside your
+   network — make it deliberately.
+
+### Embeddings still need a 768-dimension model
+
+The schema stores `vector(768)`, and Setu refuses a model that returns any other width. Hosted
+embedding models are usually wider (1536+), and Setu does not ask for a narrower one.
+
+Embedding is cheap to run on CPU, so no GPU is not a blocker: run
+`text-embedding-nomic-embed-text-v1.5` in LM Studio or Ollama on the host and set
+**Advanced → Embedding endpoint** to `http://host.docker.internal:1234/v1`, leaving chat on the
+gateway. Confirm the width before relying on it:
+
+```bash
+docker compose exec app npm run probe:endpoint
+```
+
+If OmniRoute runs on a different machine instead of in compose, use that machine's address and set
+`LLM_BASE_URL` accordingly.
 
 ## Connecting the model
 
@@ -125,8 +156,8 @@ container itself, so a model on your machine is not reachable there.
 
 | where the model runs | what to enter |
 |---|---|
+| OmniRoute, as compose runs it | `http://omniroute:20128/v1` + API key |
 | the machine hosting Setu (LM Studio, Ollama) | `http://host.docker.internal:1234/v1` |
-| OmniRoute on the machine hosting Setu | `http://host.docker.internal:20128/v1` + API key |
 | another machine on the network | `http://10.0.4.20:1234/v1` |
 | a hosted provider | `https://api.provider.com/v1` + API key |
 
@@ -144,20 +175,25 @@ from inside the container:  127.0.0.1:1234       -> CONNECTION REFUSED
 Running without Docker (`npm run dev`), the app *is* on your machine, so `127.0.0.1` is correct
 and `host.docker.internal` will not resolve.
 
-### The old environment-variable route
+### Where the private-network check runs
 
-The app sends client business logic to the model endpoint, so that endpoint must be private.
-**The app refuses to start otherwise** (D31) — this is enforced, not documented:
+The app sends client business logic to the model endpoint, so that endpoint must be private. The
+check (D31) runs in the **connection test**, not at boot — the endpoint lives in the database now, so
+refusing to start would only lock you out of the page where you fix it. `lib/model/test.ts` resolves
+the host, records whether it is private, and reports the reason when it is not:
 
-```bash
-$ LLM_BASE_URL=https://api.openai.com/v1 npm run preflight
-[egress] REFUSING TO START
-LLM_BASE_URL resolves to a public address (172.66.0.243, 162.159.140.245). Setu sends client
+```
+The endpoint resolves to a public address (172.66.0.243, 162.159.140.245). Setu sends client
 business logic to this endpoint and will not do so over a public network. Use a reverse tunnel
-or VPN so the model is reachable privately.
+or VPN so it is reachable privately.
 ```
 
-For the demo, the app runs on a remote server and the model runs in LM Studio on a laptop. Join them
+A public endpoint — or a private one that forwards outward, like OmniRoute — then blocks every run
+until a superadmin allows external models and records a reason.
+
+### Reaching a model on a laptop
+
+The app can run on a remote server while the model runs in LM Studio on a laptop. Join them
 with a reverse tunnel — the laptop dials out, nothing on it ever listens publicly:
 
 ```bash
@@ -258,7 +294,8 @@ See `.env.example`. Two values are load-bearing:
 
 | variable | why it matters |
 |---|---|
-| `LLM_BASE_URL` | asserted private at every start (D31). OpenAI-compatible, so LM Studio today and vLLM later is an env change, not a code change (D7). |
+| `LLM_BASE_URL` | bootstrap endpoint, asserted private by the connection test (D31). Defaults to the `omniroute` service; OpenAI-compatible, so a gateway today and vLLM later is an env change, not a code change (D7). |
+| `INITIAL_PASSWORD` | OmniRoute's dashboard login. No default — compose will not start without it. |
 | `LLM_REASONING_EFFORT` | must stay `none`. Measured 215s → 4s per call. With reasoning on, an analysis run takes 3.6 hours instead of 3 minutes (D7). |
 
 Others: `SESSION_SECRET` (32+ chars, signs the login cookie), `SEED_PASSWORD` (password for the

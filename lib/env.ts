@@ -4,8 +4,9 @@
  * enforces D31 lives in ./egress.ts, which only the boot path imports.
  */
 export const env = {
-  llmBaseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:1234/v1',
-  llmModel: process.env.LLM_MODEL ?? 'qwen/qwen3.5-9b',
+  /** Bootstrap only, until a config is saved. D34: the OmniRoute gateway, not a local GPU. */
+  llmBaseUrl: process.env.LLM_BASE_URL ?? 'http://localhost:20128/v1',
+  llmModel: process.env.LLM_MODEL ?? '',
   llmApiKey: process.env.LLM_API_KEY ?? '',
   /** D7: measured 215s -> 4s. Not a tuning knob. */
   reasoningEffort: process.env.LLM_REASONING_EFFORT ?? 'none',

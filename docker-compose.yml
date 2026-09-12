@@ -14,14 +14,29 @@ services:
       timeout: 3s
       retries: 20
 
+  # No GPU on the server, so the models come from providers behind a gateway rather than
+  # from a local runtime. Dashboard and API share 20128; published so an admin can add a
+  # provider and mint the key Setu authenticates with.
+  omniroute:
+    image: diegosouzapw/omniroute:latest
+    restart: unless-stopped
+    environment:
+      # Holds provider API keys — refuse to start rather than fall back to "CHANGEME".
+      INITIAL_PASSWORD: ${INITIAL_PASSWORD:?set INITIAL_PASSWORD in .env}
+    ports: ["20128:20128"]
+    volumes: ["omniroute-data:/app/data"]
+    # Its SQLite needs time to checkpoint, or the volume is left mid-write.
+    stop_grace_period: 40s
+
   app:
     build: .
     command: sh -c "npx tsx bin/preflight.ts --migrate && node server.js"
     environment: &llm
       DATABASE_URL: postgres://setu:setu@db:5432/setu
-      # D34: the model lives outside compose, reached over a reverse tunnel.
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
-      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.5-9b}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://omniroute:20128/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      # Whatever the gateway offers — the real choice is made in Settings -> Model.
+      LLM_MODEL: ${LLM_MODEL:-}
       LLM_REASONING_EFFORT: none
       EMBED_MODEL: ${EMBED_MODEL:-text-embedding-nomic-embed-text-v1.5}
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-at-least-32-chars-long!}
@@ -30,10 +45,12 @@ services:
       # Reaches a model running outside the container, on the host.
       SETU_HOST_ALIAS: host.docker.internal
     ports: ["3000:3000"]
-    # Lets the container reach the tunnel bound on the host bridge.
+    # Lets the container reach a CPU embedder, or a tunnel, bound on the host bridge.
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on:
       db: { condition: service_healthy }
+      # Ordering only: the service name has to resolve before anyone tests the endpoint.
+      omniroute: { condition: service_started }
 
   worker:
     build: .
@@ -42,6 +59,8 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on:
       db: { condition: service_healthy }
+      omniroute: { condition: service_started }
 
 volumes:
   setu-db:
+  omniroute-data:
