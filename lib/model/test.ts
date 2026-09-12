@@ -121,7 +121,10 @@ export async function testModelEndpoint(input: {
     : client
   try {
     const e = await embedClient.embeddings.create({
+      // Same request shape as ai/embed.ts, dimensions included — testing a different shape
+      // than the one that runs would report a width nothing else will produce.
       model: input.embedModel, input: 'loan disbursement retry', encoding_format: 'float',
+      dimensions: env.embedDims,
     })
     r.embedDims = e.data[0]!.embedding.length
     if (r.embedDims !== env.embedDims) {

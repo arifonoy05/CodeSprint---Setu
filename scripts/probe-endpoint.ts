@@ -55,9 +55,11 @@ try {
 
 if (embed) {
   try {
-    const r = await client.embeddings.create({ model: embed, input: 'loan disbursement retry', encoding_format: 'float' })
+    // Same request shape as lib/ai/embed.ts: ask for the width the schema stores.
+    const want = Number(process.argv[6] ?? process.env.EMBED_DIMS ?? 768)
+    const r = await client.embeddings.create({ model: embed, input: 'loan disbursement retry', encoding_format: 'float', dimensions: want })
     const d = r.data[0]!.embedding.length
-    console.log(`\nembedding model: ${embed}\n  dimensions: ${d}  ${d === 768 ? '(matches the schema)' : '(MISMATCH — needs a migration and a full re-index)'}`)
+    console.log(`\nembedding model: ${embed}\n  dimensions: ${d}  ${d === want ? `(matches the schema)` : `(MISMATCH — schema stores ${want}, needs a migration and a full re-index)`}`)
   } catch (e) { console.log(`\nembeddings failed: ${(e as Error).message.slice(0, 140)}`) }
 } else {
   console.log('\nno embedding model found — Setu needs one on the same endpoint')

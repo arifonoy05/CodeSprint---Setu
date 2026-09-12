@@ -20,6 +20,11 @@ export async function embed(texts: string[]): Promise<number[][]> {
       model: embedModel,
       input: texts.slice(i, i + BATCH),
       encoding_format: 'float',
+      // Asks a wider model to return our width — OpenAI's text-embedding-3-* and the gateways
+      // that forward this honour it, which is the difference between a 1536-dim model being
+      // usable and being rejected. A server that does not support it fails at the connection
+      // test, where the error is read, rather than silently returning the wrong width.
+      dimensions: env.embedDims,
     })
     for (const d of [...res.data].sort((a, b) => a.index - b.index)) {
       const v = d.embedding as number[]

@@ -233,6 +233,17 @@ run once, so the `TRUNCATE` happens when a human writes it — not on every star
 
 The quality figures below were measured at 768; another width invalidates them.
 
+### Using an OpenAI embedding model
+
+`text-embedding-3-small` returns 1536 and `-large` 3072, but both support Matryoshka truncation:
+Setu sends `dimensions` with every embedding request, so they return `EMBED_DIMS` wide and need
+**no migration and no re-index**. Set the Embedding model to `openai/text-embedding-3-small`
+(through a gateway) and leave `EMBED_DIMS=768`.
+
+This costs per token, and the endpoint is public — prompts leave your network, so a superadmin has
+to allow external models, exactly as for chat. Endpoints that reject an unknown `dimensions` field
+say so at the connection test.
+
 Leave `COMPOSE_FILE` unset and nothing about the default stack changes — `docker-compose.9router.yml`
 is never read, so its two secrets are not required either. (A compose *profile* cannot do this:
 variables are interpolated before profiles are filtered, so a profiled service with required secrets
