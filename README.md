@@ -139,15 +139,34 @@ Wiring the gateway in is not the same as switching it on. Both of these are deli
    `/health`. That choice sends requirement text, source code and incident history outside your
    network — make it deliberately.
 
-### Embeddings still need a 768-dimension model
+### Embeddings: OmniRoute can do it, with the right model id
 
-The schema stores `vector(768)`, and Setu refuses a model that returns any other width. Hosted
-embedding models are usually wider (1536+), and Setu does not ask for a narrower one.
+The schema stores `vector(768)`, and Setu refuses any other width. Setu does **not** send a
+`dimensions` parameter, so the model has to return 768 *natively* — `openai/text-embedding-3-small`
+returns 1536 and is rejected, even though it could be truncated.
 
-Embedding is cheap to run on CPU, so no GPU is not a blocker: run
-`text-embedding-nomic-embed-text-v1.5` in LM Studio or Ollama on the host and set
-**Advanced → Embedding endpoint** to `http://host.docker.internal:1234/v1`, leaving chat on the
-gateway. Confirm the width before relying on it — the probe takes the endpoint as an argument:
+OmniRoute serves `/v1/embeddings`, and its model ids need a **`provider/model` prefix** — a bare id
+is refused. Ids that are natively 768:
+
+| embedding model id | needs |
+|---|---|
+| `fireworks/nomic-ai/nomic-embed-text-v1.5` | a Fireworks API key |
+| `deepinfra/BAAI/bge-base-en-v1.5` | a DeepInfra API key |
+| `together/togethercomputer/m2-bert-80M-8k-retrieval` | a Together API key |
+| `ollama-local/nomic-embed-text` | Ollama reachable from OmniRoute |
+
+Embeddings always need a provider API key — OmniRoute's keyless pools are chat-only. So:
+
+- **Simplest, no extra service:** leave **Advanced → Embedding endpoint** blank so embeddings use
+  the gateway, and set **Embedding model** to `fireworks/nomic-ai/nomic-embed-text-v1.5`. Costs a
+  key; the text leaves your network like the chat calls do.
+- **Keeps text in-network:** run `nomic-embed-text` in Ollama or LM Studio (768 wide, fine on CPU —
+  no GPU needed) and point **Embedding endpoint** straight at it, e.g.
+  `http://host.docker.internal:11434/v1`, leaving chat on the gateway. Going *through* OmniRoute to
+  reach your own Ollama only adds a hop.
+
+Model ids and widths above come from OmniRoute's embedding registry, not from a live run — confirm
+before relying on either route. The probe takes the endpoint as an argument:
 
 ```bash
 docker compose exec app npm run probe:endpoint -- http://host.docker.internal:1234/v1
