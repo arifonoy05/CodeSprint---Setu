@@ -39,6 +39,9 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_REASONING_EFFORT: none
       EMBED_MODEL: ${EMBED_MODEL:-text-embedding-nomic-embed-text-v1.5}
+      # Shared by app and worker on purpose: two processes disagreeing on the width would
+      # write vectors the other rejects.
+      EMBED_DIMS: ${EMBED_DIMS:-768}
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-at-least-32-chars-long!}
       # Set true to serve over plain HTTP on a local network; the login cookie needs it.
       SETU_ALLOW_HTTP: ${SETU_ALLOW_HTTP:-}

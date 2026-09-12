@@ -11,7 +11,12 @@ export const env = {
   /** D7: measured 215s -> 4s. Not a tuning knob. */
   reasoningEffort: process.env.LLM_REASONING_EFFORT ?? 'none',
   embedModel: process.env.EMBED_MODEL ?? 'text-embedding-nomic-embed-text-v1.5',
-  embedDims: 768,
+  /**
+   * Must match the vector(N) the schema stores, so changing it is an env change PLUS a
+   * migration PLUS a full re-index (see README). Everything that cares reads it from here:
+   * the width guard in ai/embed.ts, the blocker in model/config.ts, the connection test.
+   */
+  embedDims: Number(process.env.EMBED_DIMS ?? 768),
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://setu:setu@localhost:5433/setu',
   sessionSecret: process.env.SESSION_SECRET ?? 'dev-only-secret-at-least-32-chars-long!',
   jiraPushEnabled: process.env.JIRA_PUSH_ENABLED === 'true',

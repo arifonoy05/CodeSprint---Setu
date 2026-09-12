@@ -205,6 +205,34 @@ Two traps:
 - **Keep the `jina/` prefix.** An unprefixed id is silently routed to OpenAI, which returns
   1536-wide vectors from a provider you did not intend — a wrong answer, not an error.
 
+### Running at a width other than 768
+
+`EMBED_DIMS` sets the width Setu expects, and everything that cares reads it: the guard in
+`lib/ai/embed.ts`, the run blocker, the connection test. It is deliberately **not** enough on its
+own — the schema stores `vector(N)`, and Postgres rejects anything else.
+
+Changing width is three steps, in this order:
+
+1. Add a migration, e.g. `lib/db/migrations/0013_embed_dims.sql`. Stored vectors cannot be
+   converted to a new width, so they go:
+
+   ```sql
+   TRUNCATE chunks;
+   ALTER TABLE chunks ALTER COLUMN embedding TYPE vector(1024);
+   DROP INDEX idx_chunks_embedding;
+   CREATE INDEX idx_chunks_embedding ON chunks USING hnsw (embedding vector_cosine_ops);
+   ```
+
+2. Set `EMBED_DIMS=1024` in `.env` (app and worker both read it — they must agree).
+3. Re-index: `docker compose exec app npm run index`, and re-run any analysis, since old
+   findings cite chunks that no longer exist.
+
+A numbered migration on purpose, not a width check at boot: migrations are tracked by filename and
+run once, so the `TRUNCATE` happens when a human writes it — not on every start, where a typo in
+`EMBED_DIMS` would quietly empty the table.
+
+The quality figures below were measured at 768; another width invalidates them.
+
 Leave `COMPOSE_FILE` unset and nothing about the default stack changes — `docker-compose.9router.yml`
 is never read, so its two secrets are not required either. (A compose *profile* cannot do this:
 variables are interpolated before profiles are filtered, so a profiled service with required secrets
