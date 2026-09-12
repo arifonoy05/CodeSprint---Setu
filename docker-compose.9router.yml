@@ -1,0 +1,23 @@
+# Embeddings only, and optional. OmniRoute has no natively-768 model without a paid provider key,
+# and the schema stores vector(768) — 9router reaches jina-embeddings-v2-base-en, which is 768 and
+# has a free tier. Chat stays on omniroute either way.
+#
+# A separate file rather than a profile: compose interpolates variables before it filters profiles,
+# so a profiled service with required secrets breaks `docker compose config` for everyone who has
+# not set them. Unread file, no such demand. Opt in from .env with
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.9router.yml
+services:
+  "9router":
+    image: decolua/9router:latest
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /app/data
+      # Its own credentials, not omniroute's: each dashboard holds a different provider's keys.
+      INITIAL_PASSWORD: ${NINEROUTER_PASSWORD:?set NINEROUTER_PASSWORD in .env}
+      JWT_SECRET: ${NINEROUTER_JWT_SECRET:?set NINEROUTER_JWT_SECRET in .env}
+    # 20128 inside, like omniroute — only the published port has to differ.
+    ports: ["20129:20128"]
+    volumes: ["9router-data:/app/data"]
+
+volumes:
+  "9router-data":

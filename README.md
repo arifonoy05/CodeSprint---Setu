@@ -176,6 +176,40 @@ docker compose exec app npm run probe:endpoint -- http://host.docker.internal:12
 If OmniRoute runs on a different machine instead of in compose, use that machine's address and set
 `LLM_BASE_URL` accordingly.
 
+### Or: 9router for embeddings, on a free tier
+
+OmniRoute's 768-wide options all need a paid provider key. [9router](https://github.com/decolua/9router)
+reaches `jina-embeddings-v2-base-en` — 768 native, and Jina's free tier is 10M tokens on signup. It
+is a second gateway used **only for embeddings**; chat stays on OmniRoute. Enable it in `.env`:
+
+```
+COMPOSE_FILE=docker-compose.yml:docker-compose.9router.yml
+NINEROUTER_PASSWORD=<strong password>
+NINEROUTER_JWT_SECRET=<32+ random chars>
+```
+
+`docker compose up -d` then also starts it, published on **20129** (inside the network it listens on
+20128 like OmniRoute — only published ports have to differ). Add a Jina key and mint an API key at
+`http://localhost:20129`, then in **Settings → Model → Advanced**:
+
+| field | value |
+|---|---|
+| Embedding endpoint | `http://9router:20128/v1` |
+| Embedding endpoint API key | your 9router key |
+| Embedding model | `jina/jina-embeddings-v2-base-en` — type it, see below |
+
+Two traps:
+
+- **The model list will not offer it.** 9router's `/v1/models` returns chat models only, so
+  **Load from endpoint** never shows embedding ids. Type the id in.
+- **Keep the `jina/` prefix.** An unprefixed id is silently routed to OpenAI, which returns
+  1536-wide vectors from a provider you did not intend — a wrong answer, not an error.
+
+Leave `COMPOSE_FILE` unset and nothing about the default stack changes — `docker-compose.9router.yml`
+is never read, so its two secrets are not required either. (A compose *profile* cannot do this:
+variables are interpolated before profiles are filtered, so a profiled service with required secrets
+breaks `docker compose` for everyone who has not set them.)
+
 ## Connecting the model
 
 The endpoint is configured in the app, not the environment: sign in as a superadmin and open
@@ -352,5 +386,6 @@ See `.env.example`. Two values are load-bearing:
 
 Others: `SETU_ALLOW_HTTP` (serve over plain HTTP on a LAN — unset it wherever TLS is available),
 `SESSION_SECRET` (32+ chars, signs the login cookie), `SEED_PASSWORD` (password for the
-seeded users), `JIRA_PUSH_ENABLED` / `JIRA_BASE_URL` / `JIRA_PROJECT_KEY` / `JIRA_TOKEN` (Jira push;
+seeded users), `COMPOSE_PROFILES=9router` plus `NINEROUTER_PASSWORD` and `NINEROUTER_JWT_SECRET`
+(the optional embeddings-only gateway), `JIRA_PUSH_ENABLED` / `JIRA_BASE_URL` / `JIRA_PROJECT_KEY` / `JIRA_TOKEN` (Jira push;
 off by default).
