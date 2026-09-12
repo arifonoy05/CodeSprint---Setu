@@ -10,7 +10,14 @@ type SetuSession = { user?: SessionUser }
 const options: SessionOptions = {
   password: env.sessionSecret,
   cookieName: 'setu_session',
-  cookieOptions: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' },
+  cookieOptions: {
+    httpOnly: true,
+    sameSite: 'lax',
+    // A secure cookie is dropped over plain HTTP, so sign-in silently fails. Deployed on a
+    // local network there is no certificate to have — hence an opt-out, not a default:
+    // anything reachable from outside the LAN needs TLS and must leave this unset.
+    secure: process.env.NODE_ENV === 'production' && process.env.SETU_ALLOW_HTTP !== 'true',
+  },
 }
 
 export async function getSession() {

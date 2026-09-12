@@ -40,6 +40,8 @@ services:
       LLM_REASONING_EFFORT: none
       EMBED_MODEL: ${EMBED_MODEL:-text-embedding-nomic-embed-text-v1.5}
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-at-least-32-chars-long!}
+      # Set true to serve over plain HTTP on a local network; the login cookie needs it.
+      SETU_ALLOW_HTTP: ${SETU_ALLOW_HTTP:-}
       # Lets Setu explain why a loopback endpoint is unreachable from in here.
       SETU_IN_CONTAINER: "true"
       # Reaches a model running outside the container, on the host.

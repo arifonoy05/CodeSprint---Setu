@@ -47,6 +47,38 @@ docker compose down -v     # stop and delete both — including OmniRoute's prov
 docker compose logs -f app worker
 ```
 
+## Deploying on a local network
+
+On a LAN there is no certificate to have, so Setu serves plain HTTP. Set this in `.env`:
+
+```
+SETU_ALLOW_HTTP=true
+SESSION_SECRET=<32+ random chars>
+INITIAL_PASSWORD=<strong password>
+```
+
+`SETU_ALLOW_HTTP` exists because the login cookie is marked `secure` in production, and a secure
+cookie is **dropped over plain HTTP** — sign-in would appear to do nothing at all. Leave it unset
+anywhere reachable from outside the LAN, and terminate TLS in front instead.
+
+```bash
+docker compose up -d --build
+docker compose exec -e SEED_PASSWORD='<a real password>' app npm run seed
+# http://<server-ip>:3000
+```
+
+The published ports are `3000` (Setu) and `20128` (the OmniRoute dashboard, which holds your
+provider API keys). That is fine on a trusted network and wrong on a public one.
+
+Back up both volumes — `setu-db` holds runs and approvals, `omniroute-data` holds provider keys:
+
+```bash
+docker run --rm -v codesprint_setu_setu-db:/v -v "$PWD":/b alpine \
+  tar czf /b/setu-db-$(date +%F).tar.gz -C /v .
+```
+
+Update with `git pull && docker compose up -d --build`.
+
 ## OmniRoute: the default model endpoint
 
 [OmniRoute](https://github.com/diegosouzapw/OmniRoute) is an OpenAI-compatible gateway that fronts
@@ -299,6 +331,7 @@ See `.env.example`. Two values are load-bearing:
 | `INITIAL_PASSWORD` | OmniRoute's dashboard login. No default — compose will not start without it. |
 | `LLM_REASONING_EFFORT` | must stay `none`. Measured 215s → 4s per call. With reasoning on, an analysis run takes 3.6 hours instead of 3 minutes (D7). |
 
-Others: `SESSION_SECRET` (32+ chars, signs the login cookie), `SEED_PASSWORD` (password for the
+Others: `SETU_ALLOW_HTTP` (serve over plain HTTP on a LAN — unset it wherever TLS is available),
+`SESSION_SECRET` (32+ chars, signs the login cookie), `SEED_PASSWORD` (password for the
 seeded users), `JIRA_PUSH_ENABLED` / `JIRA_BASE_URL` / `JIRA_PROJECT_KEY` / `JIRA_TOKEN` (Jira push;
 off by default).
