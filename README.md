@@ -115,10 +115,11 @@ embedding models are usually wider (1536+), and Setu does not ask for a narrower
 Embedding is cheap to run on CPU, so no GPU is not a blocker: run
 `text-embedding-nomic-embed-text-v1.5` in LM Studio or Ollama on the host and set
 **Advanced → Embedding endpoint** to `http://host.docker.internal:1234/v1`, leaving chat on the
-gateway. Confirm the width before relying on it:
+gateway. Confirm the width before relying on it — the probe takes the endpoint as an argument:
 
 ```bash
-docker compose exec app npm run probe:endpoint
+docker compose exec app npm run probe:endpoint -- http://host.docker.internal:1234/v1
+#   dimensions: 768  (matches the schema)
 ```
 
 If OmniRoute runs on a different machine instead of in compose, use that machine's address and set
@@ -258,8 +259,8 @@ Needs Node 24.
 
 ```bash
 npm install
-docker compose up -d db
-npm run dev             # preflight (egress + migrate), then Next on :3000
+docker compose up -d db omniroute   # the bootstrap endpoint is omniroute on :20128
+npm run dev             # migrate, then Next on :3000
 npm run worker          # pg-boss consumer — runs analysis and generation jobs
 npm run seed            # users
 npm test                # node --test, no framework
