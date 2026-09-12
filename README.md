@@ -204,6 +204,14 @@ Two traps:
   **Load from endpoint** never shows embedding ids. Type the id in.
 - **Keep the `jina/` prefix.** An unprefixed id is silently routed to OpenAI, which returns
   1536-wide vectors from a provider you did not intend — a wrong answer, not an error.
+- **Add Jina from the built-in provider list**, not as a custom OpenAI-compatible endpoint. A custom
+  node is typed for chat and serves no embeddings, and the model id resolves to provider `jina-ai`,
+  which then has no credentials.
+
+Measured through this setup: `jina-embeddings-v2-base-en` returns 768 with or without a `dimensions`
+request; `jina-embeddings-v3` is 1024 natively and returns 768 because Setu asks for it. A 32-input
+batch came back as 32 vectors of 768, in order, in about a second. Note `/v1/models/embedding` lists
+only v3 — the v2 id is not advertised but works when sent.
 
 ### Running at a width other than 768
 
